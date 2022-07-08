@@ -12,7 +12,7 @@ export distance, name, id, nwstr, degree, getheights
 export set_outgroup!, set_outgroup
 export leafnames, Ntip, cophenetic, make_independent_tree, reroot!, midpoint_root
 export tippoint!, nodepoint!, cluster_tree, extract_with_tips
-export treeVI!, duplication_score
+export treeVI!, treeVI, duplication_score, whichmin, whichmax
 
 include("node.jl")
 include("parser.jl")

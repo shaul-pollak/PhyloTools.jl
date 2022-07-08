@@ -87,7 +87,31 @@ end
 function duplication_score(x::Node{I,T},th::Float64) where {I,T}
   ng(x::Node) = [split(l,'_')[1] for l in leafnames(x)] |> unique |> length;
   tot = ng(x);
-  any([ng(y)/tot for y in children(x)] .> th)
+  sum([ng(y)/tot for y in children(x)])/length(children(x)) .> th
 end
 
-
+function treeVI(trees::Vector{Node{T,I}}, stc::Vector{Dict{String,K}}) where {T,I,K<:Integer}
+  vi = zeros(Float64,length(trees),length(stc));
+  res = zeros(Float64,length(trees),length(stc));
+  tmp = [Vector{Vector{Any}}(undef,2) for _ in 1:Threads.nthreads()];
+  Threads.@threads for i in eachindex(trees)
+    @inbounds begin
+      if duplication_score(trees[i],.7)
+        t2 = [Vector{Vector{Any}}(undef,2) for _ in 1:2]
+        for k in 1:2
+          treeVI!(trees[i][k],stc,t2[k];fv=[2,10,30,50])
+        end
+        tmp[Threads.threadid()] = t2[1][1]>t2[1][2] ? t2[1] : t2[2];
+      else
+        treeVI!(trees[i],stc,tmp[Threads.threadid()];fv=[2,10,30,50])
+      end
+      for j in 1:length(tmp[Threads.threadid()][1])
+        if isfinite(tmp[Threads.threadid()][1][j])
+          vi[i,j] = tmp[Threads.threadid()][1][j]
+          res[i,j] = tmp[Threads.threadid()][2][j]
+        end
+      end
+    end
+  end
+  return (treevi = vi, resolution = res)
+end

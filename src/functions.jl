@@ -262,3 +262,21 @@ function midpoint_root(tr::Node{I,T}) where {I,T}
   setdistance!(cs[j],distance(cs[j]) + newdist/2)
   return tr2
 end
+
+function whichmax(x::Matrix{T}) where T<:Number
+  o = zeros(Int8,size(x,1))
+  m = maximum(x,dims=2);
+  for i in 1:size(x,1)
+    o[i] = findfirst(x[i,:] .== m[i]);
+  end
+  return o
+end
+
+function whichmin(x::Matrix{T}) where T<:Number
+  o = zeros(Int8,size(x,1))
+  m = minimum(x,dims=2);
+  for i in 1:size(x,1)
+    o[i] = findfirst(x[i,:] .== m[i]);
+  end
+  return o
+end
