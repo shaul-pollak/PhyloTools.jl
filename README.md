@@ -3,8 +3,10 @@ A julia package for phylogenetics that includes some visualization functions. \
 The basic tree data structure and the plot recipes are based off of NewickTree.jl
 
 ## Tree manipulation
-To read a tree:\
+To read a tree:
+```Julia
 tree = readnw(readline(path_to_tree))
+```
 
 We can also root the tree automatically based on a midpoint rooting criterion
 (at the node which has the minimal distance to the tip that is farthest away
