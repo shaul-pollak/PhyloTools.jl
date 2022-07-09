@@ -1,21 +1,22 @@
 # Phy
-A julia package for phylogenetics that includes some visualization functions
-The basic tree data structure and the plot recipes are based off of NewickTree.jl
+A julia package for phylogenetics that includes some visualization functions.\
+The basic tree data structure and the plot recipes are based off of NewickTree.jl\
 
-To read a tree:
+To read a tree:\
 tree = readnw(readline(path_to_tree))
 
 We can also root the tree automatically based on a midpoint rooting criterion
 (at the node which has the minimal distance to the tip that is farthest away
-from it):
+from it):\
 tree_rooted = root_midpoint(tree);
 
-Plotting is based on Plots.jl. 
-To plot a tree (without showing its tip labels):
+# Plotting
+Plotting is based on Plots.jl.\
+To plot a tree (without showing its tip labels):\
 plot(tree_rooted)
 
-To plot the tree in an upward direction:
+To plot the tree in an upward direction:\
 plot(tree_rooted; upwards=true)
 
-Trees can be clustered based on a divergence threshold:
+Trees can be clustered based on a divergence threshold:\
 cluster_tree(tree_rooted,2)
