@@ -280,3 +280,38 @@ function whichmin(x::Matrix{T}) where T<:Number
   end
   return o
 end
+
+function MRCA(tree::Node{I,T},tips::Vector{K}) where {I,T,K<:AbstractString}
+  findleaf(tree,tip) = filter(x -> name(x)==tip,getleaves(tree))[1];
+  p1 = getpath(findleaf(tree,tips[1]));
+  paths = [id.(getpath(findleaf(tree,x))) for x in tips];
+  i = reduce(intersect,paths)[1];
+  return p1[@. id(p1) == i][1]
+end
+
+function ladderize!(phy::Node{I,T}, reverse_ord::Bool = true) where {I,T}
+  # make size dict
+  sdict = make_node_size_dict(phy)
+  # walk from root to tips
+  no = filter(x -> !isleaf(x), prewalk(phy));
+  for n in no
+    tmp = children(n)[sortperm(.-[sdict[k] for k in id.(children(n))])];
+    n.children = reverse_ord ? [tmp[2],tmp[1]] : tmp
+  end
+  return phy
+end
+
+function make_node_size_dict(x::Node{I,T}) where {I,T}
+  o = postwalk(x);
+  out = Dict(id(n) => Int(0) for n in o);
+  for n in o
+    if !isleaf(n)
+      for c in children(n)
+        out[id(n)] += out[id(c)]
+      end
+    else
+      out[id(n)] = 1
+    end
+  end
+  return out
+end
