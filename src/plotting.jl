@@ -115,20 +115,12 @@ end
 @userplot Hist
 @recipe function f(h::Hist)
   x = h.args[1];
-  fc = length(h.args)>1 ? h.args[2] : "darkred"
-  linec = length(h.args)==3 ? h.args[3] : "black"
   legend_position --> :outertopright
   @series begin
-    seriestype := :histogram
-    fillcolor := fc
-    linecolor := :transparent
-    ylims := (0.,Inf)
-    x
-  end
-  @series begin
     seriestype := :stephist
-    seriescolor := linec
-    label := nothing
+    seriescolor --> "black"
+    fillcolor --> "darkred"
+    fillrange := 0
     ylims := (0,Inf)
     x
   end
