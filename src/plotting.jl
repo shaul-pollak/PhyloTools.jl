@@ -121,7 +121,7 @@ end
   @series begin
     seriestype := :histogram
     fillcolor := fc
-    linecolor := fc
+    linecolor := :transparent
     ylims := (0.,Inf)
     x
   end
