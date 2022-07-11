@@ -3,14 +3,14 @@ function order_dict(x,y)
   # y is the species tree
   o1 = collect(values(x));
   kx = collect(keys(x));
-  o2 = [y[split(k,'_')[1]] for k in kx];
+  o2 = [haskey(y,k[1]) ? y[k[1]] : NaN for k in split.(kx,'_')];
   return o1,o2
 end
 
 function count(x)
-  mx = maximum(x)
+  mx = maximum((x[isfinite.(x)]));
   out = zeros(Int64,mx);
-  for a in x
+  for a in x[isfinite.(x)]
     out[a] += 1
   end
   return out
@@ -20,25 +20,32 @@ function count(x,y)
   if length(x)!=length(y)
     error("both vectors must be the same length")
   end
-  mx = maximum(x)
-  my = maximum(y)
+  I = @. isfinite(x) & isfinite(y);
+  mx = maximum(x[I])
+  my = maximum(y[I])
   out = zeros(Int64,mx,my)
-  for i in 1:length(x) 
+  for i in findall(I)
     out[x[i],y[i]] += 1
   end
   return out
 end
 
-function entropy(x)
-  p = count(values(x));
+function entropy(x::Dict{X,Y}) where {X,Y<:Number}
+  p = count(collect(values(x)));
   p = p./sum(p); # turn in probability
-  -sum([x*log2(x) for x in p if x>0])
+  max(0.,-sum([x*log2(x) for x in p if x>0]))
+end
+
+function entropy(x::Vector{T}) where T<:Number
+  p = count(x);
+  p = p./sum(p); # turn in probability
+  max(0.,-sum([x*log2(x) for x in p if x>0]))
 end
 
 function entropy(vx,vy)
   pxy = count(vx,vy);
   pxy = pxy ./ sum(pxy); # turn into probability
-  -sum([x*log2(x) for x in pxy if x>0])
+  max(0.,-sum([x*log2(x) for x in pxy if x>0]))
 end
 
 function treeVI!(querytree::Node,stc::AbstractDict,out::Vector{Any};
@@ -72,8 +79,10 @@ function treeVI!(querytree::Node,stc::Vector{Dict{String,Int64}},
     for i in eachindex(Xs)
       for j in eachindex(Ys)
         Hxy = entropy(collect(values(Xs[i])),Ys[j])
-        vi = 2*Hxy - Hx[i] - Hy[j]
-        nvi[i,j] = 1-vi/Hxy;
+        if Hxy != 0
+          vi = 2*Hxy - Hx[i] - Hy[j]
+          nvi[i,j] = 1-vi/Hxy;
+        end
       end
     end
   end
@@ -84,26 +93,27 @@ function treeVI!(querytree::Node,stc::Vector{Dict{String,Int64}},
   return nothing
 end
 
-function duplication_score(x::Node{I,T},th::Float64) where {I,T}
+function duplication_score(x::Node{I,T}) where {I,T}
   ng(x::Node) = [split(l,'_')[1] for l in leafnames(x)] |> unique |> length;
   tot = ng(x);
-  sum([ng(y)/tot for y in children(x)])/length(children(x)) .> th
+  sum([ng(y)/tot for y in children(x)])/length(children(x)) # mean
 end
 
-function treeVI(trees::Vector{Node{T,I}}, stc::Vector{Dict{String,K}}) where {T,I,K<:Integer}
+function treeVI(trees::Vector{Node{T,I}}, stc::Vector{Dict{String,K}}; 
+    fv::Vector{F}=[2,10,30,50],dupth::Float64=.5) where {T,I,K<:Integer,F<:Number}
   vi = zeros(Float64,length(trees),length(stc));
   res = zeros(Float64,length(trees),length(stc));
   tmp = [Vector{Vector{Any}}(undef,2) for _ in 1:Threads.nthreads()];
   Threads.@threads for i in eachindex(trees)
     @inbounds begin
-      if duplication_score(trees[i],.7)
+      if duplication_score(trees[i]) >= dupth
         t2 = [Vector{Vector{Any}}(undef,2) for _ in 1:2]
         for k in 1:2
-          treeVI!(trees[i][k],stc,t2[k];fv=[2,10,30,50])
+          treeVI!(trees[i][k],stc,t2[k];fv=fv)
         end
         tmp[Threads.threadid()] = t2[1][1]>t2[1][2] ? t2[1] : t2[2];
       else
-        treeVI!(trees[i],stc,tmp[Threads.threadid()];fv=[2,10,30,50])
+        treeVI!(trees[i],stc,tmp[Threads.threadid()];fv=fv)
       end
       for j in 1:length(tmp[Threads.threadid()][1])
         if isfinite(tmp[Threads.threadid()][1][j])
