@@ -192,62 +192,85 @@ end
 # where keys are tips and values are distance to that tip
 function max_dist_to_descending_tip(tr::Node{I,T}) where {I,T}
   pw = postwalk(tr);
-  d = Dict(id(x) => Dict{I,Float64}() for x in pw if !isleaf(x));
+  d = Dict{I,Float64}();
   for n in pw # leaves to root (find farthest descending node)
-    if !isleaf(n) 
+    i = id(n);
+    if !isleaf(n)
+      m = 0;
       for c in children(n)
         if isleaf(c)
-          d[id(n)][id(c)] = distance(c);
+          dd = distance(c);
+          if dd>m
+            m = dd;
+          end
         else
-          for k in keys(d[id(c)])
-            d[id(n)][k] = d[id(c)][k] + distance(c);
+          j = id(c)
+          if d[j]>m
+            m = d[j]
           end
         end
       end
+      d[i] = m;
     end
   end
   return d
 end
 
-function add_incoming_tips!(tr::Node{I,T}, d::Dict{I,Dict{I, Float64}}) where {I,T}
-  pw = [x for x in prewalk(tr) if !isleaf(x) && !isroot(x)];
-  for n in pw
-    if isroot(n)
-      cn = [x for x in children(n) if !isleaf(x)];
-      for i in eachindex(cn)
-        c = cn[i];
-        for k in keys(d[id(c)])
-          d[id(n)][k] = d[id(c)][k] + distance(c);
-        end
-      end
-    else
-      np = parent(n);
-      for k in setdiff(keys(d[id(np)]),keys(d[id(n)]))
-        d[id(n)][k] = d[id(np)][k] + distance(n);
+function cross_parent_maxdist(p,n,d,m)
+  for c in children(p)
+    if id(c)!=id(n)
+      cdist = haskey(d,id(c)) ? d[id(c)]+distance(c) : distance(c);
+      if cdist>m
+        m=cdist
       end
     end
   end
-  return nothing
+  return distance(n) + m;
 end
 
-function find_midpoint_node(tr::Node{I,T}, d::Dict{I,Dict{I,Float64}}) where {I,T}
-  m = Inf;
-  i = I(0);
-  for (k,vd) in d
-    mv = maximum(values(vd));
-    if mv < m
-      m = mv;
-      i = k;
+function walk_up(n,d,m)
+  totdist = 0.;
+  p = n;
+  while !isnothing(parent(p))
+    tmp = cross_parent_maxdist(parent(p),p,d,m)+totdist ;
+    if tmp>m
+      m=tmp
+    end
+    totdist += distance(p);
+    p = parent(p);
+  end
+  return m
+end
+
+function add_incoming_tips(tr::Node{I,T}, d::Dict{I, Float64}) where {I,T}
+  d2 = deepcopy(d);
+  pw = filter(!isroot,prewalk(tr));
+  for n in pw
+    m = 0.
+    if isroot(parent(n))
+      m = cross_parent_maxdist(tr,n,d,m);
+    else
+      m = walk_up(n,d,m) 
+    end 
+    if (haskey(d,id(n)) && m>d[id(n)]) | !haskey(d,id(n))
+      d2[id(n)] = m
     end
   end
-  return filter(x -> id(x)==i,prewalk(tr))[1]
+  return d2
 end
 
 function midpoint_root(tr::Node{I,T}) where {I,T}
   all([isleaf(x) for x in children(tr)]) && return tr
-  d = max_dist_to_descending_tip(tr)
-  add_incoming_tips!(tr,d)
-  n = find_midpoint_node(tr,d)
+  d = max_dist_to_descending_tip(tr);
+  d = add_incoming_tips(tr,d); # this is slow
+  m = Inf;
+  for (k,v) in d
+    if v<m
+      i = k;
+      m = v;
+    end
+  end;
+  n = filter(x -> id(x)==i,prewalk(tr))[1]#       find_midpoint_node(tr,d)
   tr2 = id(n)==id(tr) ? tr : reroot!(n)
   d = max_dist_to_descending_tip(tr2);
   cs = children(tr2);
