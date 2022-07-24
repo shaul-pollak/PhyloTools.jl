@@ -101,13 +101,25 @@ end
   framestyle --> :none
   grid --> false
   legend --> false
-  toloop = filter(x -> name(x) ∈ keys(colDict),prewalk(tree))
-  for n in toloop
-    @series begin
-      markercolor := colDict[name(n)]
-      markerstrokecolor := colDict[name(n)]
-      (x1, y1) = d[id(n)]
-      [(x1,y1)]
+  if eltype(keys(colDict))==String
+    toloop = filter(x -> name(x) ∈ keys(colDict),prewalk(tree))
+    for n in toloop
+      @series begin
+        markercolor := colDict[name(n)]
+        markerstrokecolor := colDict[name(n)]
+        (x1, y1) = d[id(n)]
+        [(x1,y1)]
+      end
+    end
+  elseif eltype(keys(colDict))==UInt32
+    toloop = filter(x -> id(x) ∈ keys(colDict),prewalk(tree))
+    for n in toloop
+      @series begin
+        marker_z := colDict[id(n)]
+        markerstrokecolor := nothing
+        (x1, y1) = d[id(n)]
+        [(x1,y1)]
+      end
     end
   end
 end

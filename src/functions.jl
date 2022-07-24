@@ -198,19 +198,15 @@ function max_dist_to_descending_tip(tr::Node{I,T}) where {I,T}
     if !isleaf(n)
       m = 0;
       for c in children(n)
-        if isleaf(c)
-          dd = distance(c);
-          if dd>m
-            m = dd;
-          end
-        else
-          j = id(c)
-          if d[j]>m
-            m = d[j]
-          end
+        j = id(c)
+        tmp = d[j]+distance(c);
+        if tmp>m
+          m = tmp
         end
       end
       d[i] = m;
+    else
+      d[i] = 0.;
     end
   end
   return d
@@ -242,48 +238,77 @@ function walk_up(n,d,m)
   return m
 end
 
+#function add_incoming_tips(tr::Node{I,T}, d::Dict{I, Float64}) where {I,T}
+#  d2 = deepcopy(d);
+#  pw = filter(!isroot,prewalk(tr));
+#  for n in pw
+#    m = 0.
+#    if isroot(parent(n))
+#      m = cross_parent_maxdist(tr,n,d,m);
+#    else
+#      m = walk_up(n,d,m) 
+#    end 
+#    if (haskey(d,id(n)) && m>d[id(n)]) | !haskey(d,id(n))
+#      d2[id(n)] = m
+#    end
+#  end
+#  return d2
+#end
+
+
 function add_incoming_tips(tr::Node{I,T}, d::Dict{I, Float64}) where {I,T}
   d2 = deepcopy(d);
   pw = filter(!isroot,prewalk(tr));
   for n in pw
-    m = 0.
-    if isroot(parent(n))
-      m = cross_parent_maxdist(tr,n,d,m);
-    else
-      m = walk_up(n,d,m) 
-    end 
-    if (haskey(d,id(n)) && m>d[id(n)]) | !haskey(d,id(n))
-      d2[id(n)] = m
+    ni = id(n)
+    m = d[ni]
+    m2p = 0.
+    cn = n
+    while !isnothing(parent(cn))
+      m2p += distance(cn);
+      cnc = filter(x -> id(x)!=id(cn),children(parent(cn))); # finds sisters
+      for c in cnc
+        v = d[id(c)]+distance(c)+m2p;
+        if v>m
+          m=v
+        end
+      end
+      cn = parent(cn);
     end
+    d2[ni] = m;
   end
   return d2
 end
 
+
 function midpoint_root(tr::Node{I,T}) where {I,T}
   all([isleaf(x) for x in children(tr)]) && return tr
   d = max_dist_to_descending_tip(tr);
-  d = add_incoming_tips(tr,d); # this is slow
+  d = add_incoming_tips(tr,d);
   m = Inf;
+  i = 0;
   for (k,v) in d
     if v<m
       i = k;
       m = v;
     end
   end;
-  n = filter(x -> id(x)==i,prewalk(tr))[1]#       find_midpoint_node(tr,d)
-  tr2 = id(n)==id(tr) ? tr : reroot!(n)
-  d = max_dist_to_descending_tip(tr2);
-  cs = children(tr2);
+  n = filter(x -> id(x)==i,prewalk(tr))[1];
+  if !isroot(n)
+    tr = reroot!(n);
+  end
+  d = max_dist_to_descending_tip(tr);
+  cs = children(tr);
   md = [isleaf(x) ? 0. : maximum(values(d[id(x)])) for x in cs];
   mdiff = diff(sort(md))[1];
-  mdiff==0 && return tr2
+  mdiff==0 && return tr
   i = md[1]>md[2] ? 1 : 2;
   j = md[1]>md[2] ? 2 : 1;
   th = distance(cs[1]);
   newdist = mdiff/2 <= th ? mdiff/2 : th/2;
   setdistance!(cs[i],max(eps(),newdist))
   setdistance!(cs[j],distance(cs[j]) + newdist/2)
-  return tr2
+  return tr
 end
 
 function whichmax(x::Matrix{T}) where T<:Number
