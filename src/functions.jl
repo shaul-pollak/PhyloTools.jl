@@ -4,39 +4,41 @@ function Ntip(x::Node)
 	length(getleaves(x))
 end
 
-function coph!(out,orig,target,nd,ld)
+dist2root(n) = sum([isfinite(distance(x)) ? distance(x) : 0 for x in getpath(n)]);
+
+function node_children_dist!(n,nd,ld,o)
   @inbounds begin
-    pth = getpath(orig,target)[1]; 
-    focal = [name(orig)];
-    for a in 2:length(pth)
-      k = pth[a];
-      nfc = [x for x in children(k) if id(x)!=id(orig)];
-      nonfocal = [isleaf(x) ? Set([name(x)]) : keys(nd[id(x)]) for x in nfc];
-      nonfocal = reduce(union,nonfocal) |> collect;
-      ii = [ld[x] for x in focal];
-      jj = [ld[x] for x in nonfocal];
-      for i in 1:length(ii)
-        @simd for j in 1:length(jj)
-          out[ii[i],jj[j]] = out[jj[j],ii[i]] = nd[id(k)][focal[i]] + nd[id(k)][nonfocal[j]];
-        end
-      end
-      # go over subtrees
-      if !isroot(k)
-        for n in nfc
-          if !isleaf(n) 
-            coph!(out,getleaves(n)[1],n,nd,ld);
+    for c in children(n)
+      cci = id(c);
+      ocs = filter(x -> id(x)!=cci,children(n));
+      for l1 in leafnames(c) 
+        i = ld[l1];
+        d1 = isleaf(c) ? distance(c) : nd[cci][l1]+distance(c);
+        for oc in ocs
+          for l2 in leafnames(oc)
+            j = ld[l2];
+            d2 = isleaf(oc) ? distance(oc) : nd[id(oc)][l2]+distance(oc);
+            o[i,j] = o[j,i] = d1+d2
           end
         end
       end
-      focal = union(focal,nonfocal);
-      orig = k;
     end
   end
-  return out
+end
+
+function _outdist(x::Node{I,T},nd::Dict{I,Dict{String,Float64}}) where {I,T}
+  nl = Ntip(x);
+  o = zeros(Float64,nl,nl);
+  lns = leafnames(x);
+  ld = Dict(lns[i] => i for i in eachindex(lns));
+  # calculate pairwise distance between leaves under node
+  for n in filter(!isleaf,prewalk(x))
+    node_children_dist!(n,nd,ld,o);
+  end
+  return o
 end
 
 function cophenetic(x::Node{T,I}) where {T,I}
-  out = zeros(Float64,Ntip(x),Ntip(x));
   leaves = leafnames(x);
   # leaf name to row/col index
   ld = Dict(leaves[i] => i for i in eachindex(leaves));
@@ -55,18 +57,17 @@ function cophenetic(x::Node{T,I}) where {T,I}
             push!(lv,name(c));
             push!(vv,distance(c));
           else
-            append!(lv,keys(nd[id(c)]));
-            append!(vv,values(nd[id(c)]) .+ distance(c));
+            ci = id(c);
+            append!(lv,keys(nd[ci]));
+            append!(vv,values(nd[ci]) .+ distance(c));
           end
         end
-        # create entry in in
+        # create entry in nd
         nd[id(n)] = Dict(zip(lv,vv));
       end
     end
     ## populate output
-    lvs = [getleaves(y) for y in children(x)];
-    coph!(out,lvs[1][1],getroot(lvs[1][1]),nd,ld);
-    coph!(out,lvs[2][1],getroot(lvs[2][1]),nd,ld);
+    out = _outdist(x,nd)
   end
   return out
 end
