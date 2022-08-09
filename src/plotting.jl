@@ -106,7 +106,7 @@ end
     for n in toloop
       @series begin
         markercolor := colDict[name(n)]
-        markerstrokecolor := colDict[name(n)]
+        markerstrokecolor --> colDict[name(n)]
         (x1, y1) = d[id(n)]
         [(x1,y1)]
       end
