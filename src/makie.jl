@@ -1,9 +1,4 @@
-import MakieCore.convert_arguments
-import MakieCore.plottype
-import MakieCore.linesegments
-import MakieCore.AbstractPlot
-
-function make_coords(tr::Node{I,T}, u::Bool=false) where {I,T}
+function make_coords(tr::Node{I,T}; u::Bool=false) where {I,T}
     d = treepositions(tr, upwards=u)
     toloop = prewalk(tr)
     v = Vector{Tuple}()
@@ -11,26 +6,41 @@ function make_coords(tr::Node{I,T}, u::Bool=false) where {I,T}
         if isroot(n)
             if isfinite(distance(n))
                 (x, y) = d[id(n)]
-                push!(v, (x, y - distance(n)))
-                push!(v, (x, y))
+                if !u
+                    push!(v, (0.0, y))
+                    push!(v, (x, y))
+                elseif u
+                    push!(v, (x, 0.0))
+                    push!(v, (x, y))
+                end
             end
         else
             (x1, y1) = d[id(n)]
             (x2, y2) = d[id(parent(n))]
-            push!(v, (x2, y2))
-            push!(v, (x2, y1))
-            push!(v, (x2, y1))
-            push!(v, (x1, y1))
+            if !u
+                push!(v, (x2, y2))
+                push!(v, (x2, y1))
+                push!(v, (x2, y1))
+                push!(v, (x1, y1))
+            elseif u
+                push!(v, (x2, y2))
+                push!(v, (x1, y2))
+                push!(v, (x1, y2))
+                push!(v, (x1, y1))
+            end
         end
     end
     return v
 end
 
-function convert_arguments(P::Type{<:AbstractPlot}, tr::Node)
-    x = make_coords(tr)
+function MakieCore.plot!(p::MakieCore.Plot(Node))
+    tr = p[1][]
+    up = get(p, :up, false)
+    x = make_coords(tr, u=up)
     xs = [x[1] for x in x]
     ys = [x[2] for x in x]
-    return convert_arguments(P, xs, ys)
+    clr = get(p, :color, :black)
+    lw = get(p, :linewidth, 1)
+    MakieCore.linesegments!(p, xs, ys, color=clr, linewidth=lw)
+    return p
 end
-
-plottype(::Node) = linesegments
