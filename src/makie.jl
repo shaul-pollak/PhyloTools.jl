@@ -33,9 +33,9 @@ function make_coords(tr::Node{I,T}; u::Bool=false) where {I,T}
     return v
 end
 
-function MakieCore.plot!(p::MakieCore.Plot(Node))
+function MakieCore.plot!(p::MakieCore.Plot(Phy.Node))
     tr = p[1][]
-    up = get(p, :up, false)
+    up = get(p, :up, false)[]
     x = make_coords(tr, u=up)
     xs = [x[1] for x in x]
     ys = [x[2] for x in x]
@@ -44,3 +44,53 @@ function MakieCore.plot!(p::MakieCore.Plot(Node))
     MakieCore.linesegments!(p, xs, ys, color=clr, linewidth=lw)
     return p
 end
+
+function filter_treepos(tps::Dict{I,J}, d::Dict{<:AbstractString,K}, tr::Node{I,T}) where {I,J,K,T}
+    lvs = filter(x -> name(x) ∈ keys(d), getleaves(tr))
+    x, y, c = Vector{Float64}(), Vector{Float64}(), Vector{K}()
+    for l in lvs
+        p = tps[id(l)]
+        push!(x, p[1])
+        push!(y, p[2])
+        push!(c, d[name(l)])
+    end
+    return x, y, c
+end
+
+MakieCore.@recipe(TipPoints, tr, d) do scene
+    MakieCore.Theme(
+        Axis=(
+            # remove spines
+            leftspinevisible=false,
+            rightspinevisible=false,
+            bottomspinevisible=false,
+            topspinevisible=false,
+            # remove y axis decorations
+            ylabelvisible=false,
+            yticklabelsvisible=false,
+            yticksvisible=false,
+            ygridvisible=false,
+            yminorgridvisible=false,
+            yminorticksvisible=false,
+            # remove x axis decorations
+            xlabelvisible=false,
+            xticklabelsvisible=false,
+            xticksvisible=false,
+            xgridvisible=false,
+            xminorgridvisible=false,
+            xminorticksvisible=false
+        )
+    )
+end
+
+function MakieCore.plot!(p::TipPoints)
+    tr = p[1][]
+    d = p[2][]
+    up = get(p, :up, false)[]
+    tps = treepositions(tr, upwards=up)
+    x, y, c = filter_treepos(tps, d, tr)
+    MakieCore.scatter!(p, x, y, color=c)
+    return p
+end
+
+
