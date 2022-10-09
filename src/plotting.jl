@@ -124,16 +124,16 @@ end
   end
 end
 
-@userplot Hist
-@recipe function f(h::Hist)
-  x = h.args[1];
-  legend_position --> :outertopright
-  @series begin
-    seriestype := :stephist
-    seriescolor --> "black"
-    fillcolor --> "darkred"
-    fillrange := 0
-    ylims := (0,Inf)
-    x
-  end
-end
+# @userplot Hist
+# @recipe function f(h::Hist)
+#   x = h.args[1];
+#   legend_position --> :outertopright
+#   @series begin
+#     seriestype := :stephist
+#     seriescolor --> "black"
+#     fillcolor --> "darkred"
+#     fillrange := 0
+#     ylims := (0,Inf)
+#     x
+#   end
+# end

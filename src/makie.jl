@@ -87,9 +87,10 @@ function MakieCore.plot!(p::TipPoints)
     tr = p[1][]
     d = p[2][]
     up = get(p, :up, false)[]
+    cm = get(p, :colormap, :viridis)
     tps = treepositions(tr, upwards=up)
     x, y, c = filter_treepos(tps, d, tr)
-    MakieCore.scatter!(p, x, y, color=c)
+    MakieCore.scatter!(p, x, y, color=c, colormap=cm)
     return p
 end
 
