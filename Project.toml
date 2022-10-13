@@ -10,6 +10,7 @@ MakieCore = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 
 [compat]
+MakieCore = "0.5"
 julia = "1.8"
 
 [extras]
