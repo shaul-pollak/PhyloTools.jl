@@ -1,4 +1,4 @@
-module Phy
+module PhyJL
 
 using AbstractTrees
 using RecipesBase
