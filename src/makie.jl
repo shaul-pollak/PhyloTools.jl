@@ -33,7 +33,7 @@ function make_coords(tr::Node{I,T}; u::Bool=false) where {I,T}
     return v
 end
 
-function MakieCore.plot!(p::MakieCore.Plot(PhyJL.Node))
+function MakieCore.plot!(p::MakieCore.Plot(PhyloTools.Node))
     tr = p[1][]
     up = get(p, :up, false)[]
     x = make_coords(tr, u=up)
