@@ -345,7 +345,10 @@ function ladderize!(phy::Node{I,T}, reverse_ord::Bool = true) where {I,T}
   no = filter(x -> !isleaf(x), prewalk(phy));
   for n in no
     tmp = children(n)[sortperm(.-[sdict[k] for k in id.(children(n))])];
-    n.children = reverse_ord ? [tmp[2],tmp[1]] : tmp
+    if reverse_ord
+      tmp = reverse(tmp)
+    end
+    n.children = tmp
   end
   return phy
 end
