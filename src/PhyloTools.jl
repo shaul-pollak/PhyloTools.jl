@@ -15,6 +15,7 @@ export leafnames, Ntip, cophenetic, make_independent_tree, reroot!, midpoint_roo
 export tippoint!, nodepoint!, cluster_tree, extract_with_tips
 export treeVI!, treeVI, duplication_score, whichmin, whichmax
 export MRCA, ladderize!
+export readfasta
 
 include("node.jl")
 include("parser.jl")
