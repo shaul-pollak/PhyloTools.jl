@@ -391,3 +391,21 @@ function readfasta(p::String)
     push!(o, (String(take!(hb)), String(take!(sb))))
     return o
 end
+
+"""
+    read_gff(p::String, tp::String="")
+
+reads a gff file into a vector of strings.
+the string tp filters the resulting vector by the type of entry
+examples of tp strings are "CDS" or "gene"
+"""
+function read_gff(p::String, tp::String="")
+    r = readlines(p)
+    filter!(!startswith("#"), r)
+    rs = split.(r, '\t')
+    filter!(x -> length(x) >= 3, rs)
+    if tp != ""
+        filter!(x -> x[3] == tp, rs)
+    end
+    return rs
+end
