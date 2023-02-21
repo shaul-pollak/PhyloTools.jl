@@ -1,3 +1,5 @@
+using GeometryBasics: Point2f, Polygon
+
 function make_coords(tr::Node{I,T}; u::Bool=false) where {I,T}
     d = treepositions(tr, upwards=u)
     toloop = prewalk(tr)
@@ -95,3 +97,44 @@ function MakieCore.plot!(p::TipPoints)
 end
 
 
+"""
+    gene(x::Matrix{Any}, y::Number)
+
+draws gene arrows in a given orientation at a specified y value
+x is a matrix with a row for each gene.
+the columns are: start, end, orientation (a string, "+" or "-"), and target gene designation (a Bool)
+
+"""
+function gene(x, y)
+    yt = y + 0.5
+    yb = y - 0.5
+    if x[2] - x[1] > 100
+        if x[3] == "+"
+            p1 = Point2f(x[1], yt)
+            p2 = Point2f(x[2] - 100, yt)
+            p3 = Point2f(x[2], y)
+            p4 = Point2f(x[2] - 100, yb)
+            p5 = Point2f(x[1], yb)
+            return Polygon([p1, p2, p3, p4, p5])
+        else
+            p1 = Point2f(x[1], y)
+            p2 = Point2f(x[1] + 100, yt)
+            p3 = Point2f(x[2], yt)
+            p4 = Point2f(x[2], yb)
+            p5 = Point2f(x[1] + 100, yb)
+            return Polygon([p1, p2, p3, p4, p5])
+        end
+    else
+        if x[3] == "+"
+            p1 = Point2f(x[1], yt)
+            p2 = Point2f(x[2], y)
+            p3 = Point2f(x[1], yb)
+            return Polygon([p1, p2, p3])
+        else
+            p1 = Point2f(x[1], y)
+            p2 = Point2f(x[2], yt)
+            p3 = Point2f(x[2], yb)
+            return Polygon([p1, p2, p3])
+        end
+    end
+end

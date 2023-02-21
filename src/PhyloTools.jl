@@ -4,6 +4,7 @@ using AbstractTrees
 using RecipesBase
 using Colors
 using MakieCore
+using GeometryBasics
 
 export Node, NewickData
 export isroot, isleaf, postwalk, prewalk, children, sister
@@ -15,7 +16,7 @@ export leafnames, Ntip, cophenetic, make_independent_tree, reroot!, midpoint_roo
 export tippoint!, nodepoint!, cluster_tree, extract_with_tips
 export treeVI!, treeVI, duplication_score, whichmin, whichmax
 export MRCA, ladderize!
-export readfasta
+export readfasta, gene
 
 include("node.jl")
 include("parser.jl")
