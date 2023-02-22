@@ -10,6 +10,9 @@ GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
 MakieCore = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 
+[compat]
+GeometryBasics = "0.4"
+
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
