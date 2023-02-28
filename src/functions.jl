@@ -405,3 +405,26 @@ function read_gff(p::String, tp::String="")
     end
     return rs
 end
+
+function readclu(p::T) where T<:AbstractString
+    fx(x, c)::Vector{String} = split(x, c)
+    r = read(p, String)
+    rs1 = fx(r, '\n')
+    c2k = Dict{String,Vector{String}}()
+    k2c = Dict{String,String}()
+    lk = ReentrantLock()
+    Threads.@threads for l in rs1
+        x = fx(l, '\t')
+        if length(x) > 1
+            lock(lk) do
+                if haskey(c2k, x[1])
+                    push!(c2k[x[1]], x[2])
+                else
+                    c2k[x[1]] = [x[2]]
+                end
+                k2c[x[2]] = x[1]
+            end
+        end
+    end
+    return c2k, k2c
+end
