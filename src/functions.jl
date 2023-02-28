@@ -369,26 +369,22 @@ function make_node_size_dict(x::Node{I,T}) where {I,T}
 end
 
 function readfasta(p::String)
-    o = Vector{Tuple{String,String}}()
-    hb = IOBuffer()
-    sb = IOBuffer()
-    io = open(p, "r")
-    flg = false
-    for l in eachline(io)
-        if l[1] == '>'
-            if flg
-                push!(o, (String(take!(hb)), String(take!(sb))))
+    fx(x::String)::Vector{String} = split(x,"\n>");
+    fx2(x::String)::Vector{String} = split(x,'\n');
+    r = read(p,String);
+    rs = fx(r);
+    rs[1] = rs[1][2:end]; # first record still has '>'
+    o = Dict{String,String}();
+    sizehint!(o,length(rs));
+    lk = ReentrantLock();
+    Threads.@threads for r in rs
+        x = fx2(r)
+        if length(x)>1
+            lock(lk) do
+                o[x[1]] = x[2]
             end
-            write(hb, l[2:end])
-        else
-            if !flg
-                flg = true
-            end
-            write(sb, l)
         end
     end
-    close(io)
-    push!(o, (String(take!(hb)), String(take!(sb))))
     return o
 end
 
