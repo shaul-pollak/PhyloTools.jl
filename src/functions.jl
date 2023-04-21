@@ -381,7 +381,7 @@ function readfasta(p::String)
         x = fx2(r)
         if length(x)>1
             lock(lk) do
-                o[x[1]] = x[2]
+                o[x[1]] = join(x[2:end])
             end
         end
     end
