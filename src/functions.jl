@@ -88,10 +88,10 @@ function reroot!(node::Node{T,I}) where {T,I}
         push!(alongtheway, p)
         p = parent(p)
     end
-    while length(alongtheway) > 1
+    while length(alongtheway) > 0
         p = pop!(alongtheway)
         # this will become the parent of p
-        a = filter(x -> id(x) == id(alongtheway[end]), children(p))[1]
+        a = filter(x -> id(x) == id(alongtheway[end]), children(p))[]
         d = distance(a)
         delete!(p, id(a))
         if node != a
@@ -108,9 +108,12 @@ function reroot!(node::Node{T,I}) where {T,I}
     if length(children(curr_root)) == 1
         # when the previous root was not multifurcating, we end up with a
         # superfluous node, so we delete it
+        c = children(curr_root)[]
+        d = distance(curr_root)
         p = parent(curr_root)
         delete!(p, id(curr_root))
         push!(p, curr_root[1])
+        !isnan(d) && setdistance!(c,distance(c)+d)
     end
     return newroot
 end
@@ -369,17 +372,17 @@ function make_node_size_dict(x::Node{I,T}) where {I,T}
 end
 
 function readfasta(p::String)
-    fx(x::String)::Vector{String} = split(x,"\n>");
-    fx2(x::String)::Vector{String} = split(x,'\n');
-    r = read(p,String);
-    rs = fx(r);
-    rs[1] = rs[1][2:end]; # first record still has '>'
-    o = Dict{String,String}();
-    sizehint!(o,length(rs));
-    lk = ReentrantLock();
+    fx(x::String)::Vector{String} = split(x, "\n>")
+    fx2(x::String)::Vector{String} = split(x, '\n')
+    r = read(p, String)
+    rs = fx(r)
+    rs[1] = rs[1][2:end] # first record still has '>'
+    o = Dict{String,String}()
+    sizehint!(o, length(rs))
+    lk = ReentrantLock()
     Threads.@threads for r in rs
         x = fx2(r)
-        if length(x)>1
+        if length(x) > 1
             lock(lk) do
                 o[x[1]] = join(x[2:end])
             end
@@ -406,7 +409,7 @@ function read_gff(p::String, tp::String="")
     return rs
 end
 
-function readclu(p::T) where T<:AbstractString
+function readclu(p::T) where {T<:AbstractString}
     fx(x, c)::Vector{String} = split(x, c)
     r = read(p, String)
     rs1 = fx(r, '\n')
@@ -427,4 +430,89 @@ function readclu(p::T) where T<:AbstractString
         end
     end
     return c2k, k2c
+end
+
+function MAD(tr::Node{I,T}) where {I,T}
+    trs = Vector{Node{I,T}}()
+    rs = Vector{Float64}()
+    ## go over all branches
+    #
+    # the root node defines a single branch
+    # each non-root non-leaf node defines two branches
+    #
+    # deal with given root first
+    # find new root position
+    push!(trs,MAD_rootpos(deepcopy(tr)))
+    push!(rs,mad_rmsd(trs[end]))
+    ns = filter(x -> !isleaf(x) && !isroot(x),postwalk(tr))
+    for i in eachindex(ns)
+        n = ns[i]
+        for j in eachindex(children(ns[i]))
+            nr = reroot!(deepcopy(n[j]))
+            nrt = MAD_rootpos(deepcopy(nr))
+            push!(trs,nrt)
+            push!(rs,mad_rmsd(nrt))
+        end
+    end
+    return trs[sortperm(rs)[1]]
+end
+
+
+function mad_rmsd(n::Node{I,T}) where {I,T}
+    lvs = getleaves(n)
+    s = length(lvs)*(length(lvs)-1)/2
+    o = 0.0
+    for i in eachindex(lvs)
+        for j in i+1:length(lvs)
+            o += ancnormdist(n,lvs[i],lvs[j])^2/s
+        end
+    end
+    return sqrt(o)
+end
+
+function MAD_rootpos(tr::Node{I,T}) where {I,T}
+    ii = getleaves(tr[1])
+    jj = getleaves(tr[2])
+    d_ij = distance(tr[1]) + distance(tr[2])
+    hs = getheights(tr)
+    num = 0.0
+    deno = 0.0
+    for i in ii
+        for j in jj
+            d_bc = hs[id(i)] + hs[id(j)]
+            d_bi = get_dbi(i, tr[1])
+            num += ((d_bc - 2*d_bi) / (d_bc^2))
+            deno += 1 / (d_bc^2)
+        end
+    end
+    deno = deno * 2 * d_ij
+    rho = min(max(0.0, num / deno), 1.0)
+    if rho==0
+        return reroot!(tr[1])
+    elseif rho==1
+        return reroot!(tr[2])
+    else
+        d_io = rho * d_ij
+        d_jo = (1-rho) * d_ij
+        tr[1].data.distance = d_io
+        tr[2].data.distance = d_jo
+        return tr
+    end
+end
+
+function get_dbi(c::Node{I,T}, p::Node{I,T}) where {I,T}
+    cn = c
+    o = distance(cn)
+    cp = parent(cn)
+    while id(cp) != id(p)
+        cn = cp
+        o += distance(cp)
+        cp = parent(cn)
+    end
+    return o
+end
+
+function ancnormdist(tr,l1,l2)
+    lca = MRCA(tr,[name(l1),name(l2)])
+    return abs(2*get_dbi(l1,lca)/getdistance(l1,l2) - 1)
 end
