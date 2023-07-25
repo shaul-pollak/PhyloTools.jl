@@ -1,10 +1,9 @@
-leafnames(x::Node) = [name(a) for a in getleaves(x)];
+leafnames(x::Node) = [name(a) for a in getleaves(x)]
 
-function Ntip(x::Node)
-    length(getleaves(x))
-end
+ntip(x::Node)::Int = length(getleaves(x))
+nnode(x::Node)::Int = length(postwalk(x))
 
-dist2root(n) = sum([isfinite(distance(x)) ? distance(x) : 0 for x in getpath(n)]);
+dist2root(n) = sum([isfinite(distance(x)) ? distance(x) : 0 for x in getpath(n)])
 
 function node_children_dist!(n, nd, ld, o)
     @inbounds begin
@@ -26,8 +25,8 @@ function node_children_dist!(n, nd, ld, o)
     end
 end
 
-function _outdist(x::Node{I,T}, nd::Dict{I,Dict{String,Float64}}) where {I,T}
-    nl = Ntip(x)
+function _outdist(x::Node{T,I}, nd::Dict{T,Dict{String,Float64}}) where {T,I}
+    nl = ntip(x)
     o = zeros(Float64, nl, nl)
     lns = leafnames(x)
     ld = Dict(lns[i] => i for i in eachindex(lns))
@@ -113,12 +112,12 @@ function reroot!(node::Node{T,I}) where {T,I}
         p = parent(curr_root)
         delete!(p, id(curr_root))
         push!(p, curr_root[1])
-        !isnan(d) && setdistance!(c,distance(c)+d)
+        !isnan(d) && setdistance!(c, distance(c) + d)
     end
     return newroot
 end
 
-function getdivs(x::Node{I,T}) where {I,T}
+function getdivs(x::Node{T,I}) where {T,I}
     o = postwalk(x)
     out = Dict(id(n) => 0.0 for n in o)
     for n in o
@@ -129,7 +128,7 @@ function getdivs(x::Node{I,T}) where {I,T}
     return out
 end
 
-function cluster_tree(tree::Node{I,T}, f::Number, tp="color") where {I,T}
+function cluster_tree(tree::Node{T,I}, f::Number, tp="color") where {T,I}
     lns = leafnames(tree)
     out = Dict(lns[i] => i for i in eachindex(lns))
     ds = getdivs(tree)
@@ -194,9 +193,9 @@ end
 
 # create dictionary where keys are internal nodes and values are dictionaries
 # where keys are tips and values are distance to that tip
-function max_dist_to_descending_tip(tr::Node{I,T}) where {I,T}
+function max_dist_to_descending_tip(tr::Node{T,I}) where {T,I}
     pw = postwalk(tr)
-    d = Dict{I,Float64}()
+    d = Dict{T,Float64}()
     for n in pw # leaves to root (find farthest descending node)
         i = id(n)
         if !isleaf(n)
@@ -242,25 +241,7 @@ function walk_up(n, d, m)
     return m
 end
 
-#function add_incoming_tips(tr::Node{I,T}, d::Dict{I, Float64}) where {I,T}
-#  d2 = deepcopy(d);
-#  pw = filter(!isroot,prewalk(tr));
-#  for n in pw
-#    m = 0.
-#    if isroot(parent(n))
-#      m = cross_parent_maxdist(tr,n,d,m);
-#    else
-#      m = walk_up(n,d,m) 
-#    end 
-#    if (haskey(d,id(n)) && m>d[id(n)]) | !haskey(d,id(n))
-#      d2[id(n)] = m
-#    end
-#  end
-#  return d2
-#end
-
-
-function add_incoming_tips(tr::Node{I,T}, d::Dict{I,Float64}) where {I,T}
+function add_incoming_tips(tr::Node{T,I}, d::Dict{T,Float64}) where {T,I}
     d2 = deepcopy(d)
     pw = filter(!isroot, prewalk(tr))
     for n in pw
@@ -285,7 +266,7 @@ function add_incoming_tips(tr::Node{I,T}, d::Dict{I,Float64}) where {I,T}
 end
 
 
-function midpoint_root(tr::Node{I,T}) where {I,T}
+function midpoint_root(tr::Node{T,I}) where {T,I}
     all([isleaf(x) for x in children(tr)]) && return tr
     d = max_dist_to_descending_tip(tr)
     d = add_incoming_tips(tr, d)
@@ -333,7 +314,7 @@ function whichmin(x::Matrix{T}) where {T<:Number}
     return o
 end
 
-function MRCA(tree::Node{I,T}, tips::Vector{K}) where {I,T,K<:AbstractString}
+function MRCA(tree::Node{T,I}, tips::Vector{K}) where {T,I,K<:AbstractString}
     findleaf(tree, tip) = filter(x -> name(x) == tip, getleaves(tree))[1]
     p1 = getpath(findleaf(tree, tips[1]))
     paths = [id.(getpath(findleaf(tree, x))) for x in tips]
@@ -341,7 +322,7 @@ function MRCA(tree::Node{I,T}, tips::Vector{K}) where {I,T,K<:AbstractString}
     return p1[@. id(p1) == i][1]
 end
 
-function ladderize!(phy::Node{I,T}, reverse_ord::Bool=true) where {I,T}
+function ladderize!(phy::Node{T,I}, reverse_ord::Bool=true) where {T,I}
     # make size dict
     sdict = make_node_size_dict(phy)
     # walk from root to tips
@@ -356,7 +337,7 @@ function ladderize!(phy::Node{I,T}, reverse_ord::Bool=true) where {I,T}
     return phy
 end
 
-function make_node_size_dict(x::Node{I,T}) where {I,T}
+function make_node_size_dict(x::Node{T,I}) where {T,I}
     o = postwalk(x)
     out = Dict(id(n) => Int(0) for n in o)
     for n in o
@@ -430,89 +411,4 @@ function readclu(p::T) where {T<:AbstractString}
         end
     end
     return c2k, k2c
-end
-
-function MAD(tr::Node{I,T}) where {I,T}
-    trs = Vector{Node{I,T}}()
-    rs = Vector{Float64}()
-    ## go over all branches
-    #
-    # the root node defines a single branch
-    # each non-root non-leaf node defines two branches
-    #
-    # deal with given root first
-    # find new root position
-    push!(trs,MAD_rootpos(deepcopy(tr)))
-    push!(rs,mad_rmsd(trs[end]))
-    ns = filter(x -> !isleaf(x) && !isroot(x),postwalk(tr))
-    for i in eachindex(ns)
-        n = ns[i]
-        for j in eachindex(children(ns[i]))
-            nr = reroot!(deepcopy(n[j]))
-            nrt = MAD_rootpos(deepcopy(nr))
-            push!(trs,nrt)
-            push!(rs,mad_rmsd(nrt))
-        end
-    end
-    return trs[sortperm(rs)[1]]
-end
-
-
-function mad_rmsd(n::Node{I,T}) where {I,T}
-    lvs = getleaves(n)
-    s = length(lvs)*(length(lvs)-1)/2
-    o = 0.0
-    for i in eachindex(lvs)
-        for j in i+1:length(lvs)
-            o += ancnormdist(n,lvs[i],lvs[j])^2/s
-        end
-    end
-    return sqrt(o)
-end
-
-function MAD_rootpos(tr::Node{I,T}) where {I,T}
-    ii = getleaves(tr[1])
-    jj = getleaves(tr[2])
-    d_ij = distance(tr[1]) + distance(tr[2])
-    hs = getheights(tr)
-    num = 0.0
-    deno = 0.0
-    for i in ii
-        for j in jj
-            d_bc = hs[id(i)] + hs[id(j)]
-            d_bi = get_dbi(i, tr[1])
-            num += ((d_bc - 2*d_bi) / (d_bc^2))
-            deno += 1 / (d_bc^2)
-        end
-    end
-    deno = deno * 2 * d_ij
-    rho = min(max(0.0, num / deno), 1.0)
-    if rho==0
-        return reroot!(tr[1])
-    elseif rho==1
-        return reroot!(tr[2])
-    else
-        d_io = rho * d_ij
-        d_jo = (1-rho) * d_ij
-        tr[1].data.distance = d_io
-        tr[2].data.distance = d_jo
-        return tr
-    end
-end
-
-function get_dbi(c::Node{I,T}, p::Node{I,T}) where {I,T}
-    cn = c
-    o = distance(cn)
-    cp = parent(cn)
-    while id(cp) != id(p)
-        cn = cp
-        o += distance(cp)
-        cp = parent(cn)
-    end
-    return o
-end
-
-function ancnormdist(tr,l1,l2)
-    lca = MRCA(tr,[name(l1),name(l2)])
-    return abs(2*get_dbi(l1,lca)/getdistance(l1,l2) - 1)
 end

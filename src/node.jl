@@ -216,37 +216,101 @@ end
 
 height(n::Node) = distance.(getpath(n)) |> x->filter(!isnan, x) |> sum
 
+# """
+#     extract(n::Node, l::AbstractVector{String})
+# Extract the tree with leaves in `l` from a given tree, preserving
+# distances if relevant.
+# """
+# function extract(n::Node{I,T}, l::AbstractVector) where {I,T}
+#     function walk(n)
+#         if isleaf(n)
+#             return name(n) ∈ l ? deepcopy(n) : nothing
+#         else
+#             below = Node{I,T}[]
+#             for c in children(n)
+#                 m = walk(c)
+#                 !isnothing(m) && push!(below, m)
+#             end
+#             if length(below) == 0
+#                 return nothing
+#             elseif length(below) == 1
+#                 setdistance!(below[1].data,
+#                     distance(below[1]) + distance(n))
+#                 return below[1]
+#             else
+#                 m = deepcopy(n)
+#                 m.children = below
+#                 for c in below c.parent = m end
+#                 return m
+#             end
+#         end
+#     end
+#     walk(n)
+# end
+
+
 """
     extract(n::Node, l::AbstractVector{String})
 Extract the tree with leaves in `l` from a given tree, preserving
 distances if relevant.
 """
-function extract(n::Node{I,T}, l::AbstractVector) where {I,T}
-    function walk(n)
-        if isleaf(n)
-            return name(n) ∈ l ? deepcopy(n) : nothing
-        else
-            below = Node{I,T}[]
-            for c in children(n)
-                m = walk(c)
-                !isnothing(m) && push!(below, m)
-            end
-            if length(below) == 0
-                return nothing
-            elseif length(below) == 1
-                setdistance!(below[1].data,
-                    distance(below[1]) + distance(n))
-                return below[1]
-            else
-                m = deepcopy(n)
-                m.children = below
-                for c in below c.parent = m end
-                return m
+function extract(n::Node{T,I}, l::Vector{F}) where {T,I,F<:AbstractString}
+    otr = deepcopy(n);
+    ls = Set(l);
+    pw = getleaves(otr);
+    lk = ReentrantLock();
+    Threads.@threads for xi in 1:length(pw)
+        x = pw[xi]
+        if isleaf(x) && !(name(x) ∈ ls)
+            px = parent(x)
+            lock(lk) do
+                filter!(y -> y!=x, px.children)
+                while length(px)==0
+                    filter!(y -> y!=px, parent(px).children)
+                    px = parent(px)
+                end
             end
         end
     end
-    walk(n)
+    pw = getleaves(otr)
+    Threads.@threads for x in pw
+        if length(parent(x))<2
+            p = parent(x)
+            s = distance(x)
+            torem = x
+            while length(p)<2
+                s += distance(p)
+                torem = p
+                p = parent(p)
+            end
+            lock(lk) do
+                filter!(y -> y!=torem, children(p))
+                push!(p,x)
+                x.data.distance = s
+            end
+        end
+    end
+    l1 = filter(x->!isleaf(x) && length(x)==1,postwalk(otr));
+    for x in l1
+        r = children(x)
+        while length(r)==1
+            r = children(r)[1]
+        end
+        p = parent(r)
+        s = distance(r)
+        torem = r
+        while length(p)<2
+            s += distance(p)
+            torem = p
+            p = parent(p)
+        end
+        filter!(y -> y!=torem, children(p))
+        push!(p,r)
+        r.data.distance = s
+    end
+    return otr
 end
+
 
 """
     insertnode!(n, m)

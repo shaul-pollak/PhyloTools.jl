@@ -1,5 +1,35 @@
 using GeometryBasics: Point2f, Polygon
 
+
+function treepositions(tr::Node{I,T}, transform=false; upwards=false) where {I,T}
+  o = postwalk(tr);
+  n = length(o);
+  h = getheights(tr);
+  maxh = maximum(values(h));
+  nodepos = Dict{I,Tuple{Float64,Float64}}();
+  i = 0.;
+  for n in o
+    if isleaf(n) 
+      i += 1.;
+      hn = transform ? maxh : h[id(n)];
+    else
+      hn = h[id(n)];
+    end
+    nodepos[id(n)] = upwards ? (i,hn) : (hn, i);
+  end
+  function walk(n)
+    isleaf(n) && return nodepos[id(n)]
+    cs = map(walk, children(n));
+    xn = upwards ? nodepos[id(n)][2] : nodepos[id(n)][1];
+    yn = (upwards ? sum(first.(cs)) : sum(last.(cs))) / length(cs);
+    nodepos[id(n)] = upwards ? (yn,xn) : (xn, yn);
+  end
+  walk(tr)
+  # if the root branch has non-zero length we add this:
+  return nodepos
+end
+
+
 function make_coords(tr::Node{I,T}; u::Bool=false) where {I,T}
     d = treepositions(tr, upwards=u)
     toloop = prewalk(tr)

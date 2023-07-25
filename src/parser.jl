@@ -15,7 +15,16 @@ have either support values for internal nodes or a node label, but not both.
 """
 readnw(s::AbstractString, I::Type=UInt32) =
     try
-        readnw(IOBuffer(s), I)
+        if (length(s)<=100) && ispath(s) && isfile(s)
+            l = readline(s)
+            tr = readnw(IOBuffer(l), I)
+            fix_node_ids!(tr)
+            return tr
+        else
+            tr = readnw(IOBuffer(s), I)
+            fix_node_ids!(tr)
+            return tr
+        end
     catch EOFError
         more = s[end] != ";" ? "(no trailing semicolon?)" : ""
         more = !ispath(s) ? more : "(path-like arg instead of Newick string?)"
