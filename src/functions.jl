@@ -452,7 +452,7 @@ function readclu(p::T; opt::Int=0) where {T<:AbstractString}
         lk = ReentrantLock()
         o1 = Dict{String, Vector{String}}()
         o2 = Dict{String, String}()
-        Threads.@threads for i in Threads.nthreads()
+        Threads.@threads for i in 1:Threads.nthreads()
             @views d = data[chunks[i]]
             j1 = 1
             while j1 < length(d)
