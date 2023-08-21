@@ -6,6 +6,7 @@ using MakieCore
 using GeometryBasics
 using ProgressMeter
 using Graphs
+using Mmap
 
 export Node, NewickData
 export isroot, isleaf, postwalk, prewalk, children, sister
