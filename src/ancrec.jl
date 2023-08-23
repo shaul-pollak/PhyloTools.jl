@@ -1,8 +1,8 @@
 """
+    mpr(tr::Node, x::Vector{T})::Matrix{T} where {T<:Integer}
+
 Ancestral reconstruction of discrete (integer) traits based on Narushima and Hanazawa (1997).
-
 The vector x takes integer values and should be ordered according to the leaves on the tree.
-
 This is a copy of the MPR function from the R package "ape"
 """
 function mpr(tr::Node, x::Vector{T})::Matrix{T} where {T<:Integer}
@@ -35,14 +35,14 @@ function mpr(tr::Node, x::Vector{T})::Matrix{T} where {T<:Integer}
     ## 2nd pass
     out = zeros(Union{T,Missing}, 2, m)
     out[:] .= missing
-    out = [[x';x'] out]
+    out = [[x'; x'] out]
     # we do the most basal node before lopping
     Iw = I[:, des[:, m]][:]
     out[:, anc[m]] .= extrema(med(Iw))
     for i in m-1:-1:1
         j = anc[i]
-        Iw = I[:, des[:,i]][:]
-        k = findfirst(edges[:,2] .== j)
+        Iw = I[:, des[:, i]][:]
+        k = findfirst(edges[:, 2] .== j)
         tmp = out[:, edges[k, 1]]
         out[1, j] = minimum(med([tmp[1]; tmp[1]; Iw]))
         out[2, j] = maximum(med([tmp[2]; tmp[2]; Iw]))
@@ -53,6 +53,8 @@ function mpr(tr::Node, x::Vector{T})::Matrix{T} where {T<:Integer}
 end
 
 """
+    edgemat(n::Node{T,I}; postorder::Bool=false) where {T,I}
+
 This function returns the edge matrix as in the APE package in R.
 The edges are preorder ordered (first edge is the root)
 The entries of the matrix represent node ids.
@@ -67,8 +69,8 @@ function edgemat(n::Node{T,I}; postorder::Bool=false) where {T,I}
         for c in children(x)
             i += 1
             v2 = id(c)
-            @inbounds edges[i, 1] = v1
-            @inbounds edges[i, 2] = v2
+            edges[i, 1] = v1
+            edges[i, 2] = v2
         end
     end
     return postorder ? reverse(edges, dims=1) : edges
