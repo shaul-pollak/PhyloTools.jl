@@ -1,5 +1,6 @@
 leafnames(x::Node) = [name(a) for a in getleaves(x)]
 
+using Base: readuntil_vector!
 ntip(x::Node)::Int = length(getleaves(x))
 nnode(x::Node)::Int = length(postwalk(x))
 
@@ -401,13 +402,17 @@ columns are separated by tabs.
 opt=0 means both plot2clu and clu2prot dicts
 opt=1 means clu2prot only
 opt=2 means prot2clu only
+opt=3 means from new format of clu
 """
-function readclu(p::T; opt::Int=0) where {T<:AbstractString}
-    !(opt ∈ [0,1,2]) && error("opt must be in {0,1,2}")
+function readclu(p::T; opt::Int=0, id::Int=50) where {T<:AbstractString}
+    !(opt ∈ [0, 1, 2, 3]) && error("opt must be in {0, 1, 2, 3}")
+    if opt==3
+        return clu3(p, id)
+    end
     open(p, "r") do io
         # functions
-        fx(x)::Vector{String} = split(x,'\t')
-        function safepush!(d,k,v)
+        fx(x)::Vector{String} = split(x, '\t')
+        function safepush!(d, k, v)
             if haskey(d, k)
                 push!(d[k], v)
             else
@@ -417,17 +422,17 @@ function readclu(p::T; opt::Int=0) where {T<:AbstractString}
         function create_chunks(data::Vector{UInt8})
             # create chunks that end on newline or eof
             chunk_size = (length(data) / Threads.nthreads()) |> ceil |> Int
-            chunks = [((i-1)*chunk_size + 1):min(i*chunk_size,length(data)) for i in 1:Threads.nthreads()]
+            chunks = [((i-1)*chunk_size+1):min(i * chunk_size, length(data)) for i in 1:Threads.nthreads()]
             nlis = zeros(Int, length(chunks))
             Threads.@threads for i in 1:Threads.nthreads()
                 ci = chunks[i][end-1000:end]
                 @views chunk = data[ci]
-                nlis[i] = ci[findlast(chunk.==UInt('\n'))];
+                nlis[i] = ci[findlast(chunk .== UInt('\n'))]
             end
             for i in eachindex(chunks)
-                if i==1
+                if i == 1
                     nc = chunks[i].start:nlis[i]
-                elseif i==length(chunks)
+                elseif i == length(chunks)
                     nc = nlis[i-1]+1:chunks[i].stop
                 else
                     nc = nlis[i-1]+1:nlis[i]
@@ -436,13 +441,13 @@ function readclu(p::T; opt::Int=0) where {T<:AbstractString}
             end
             return chunks
         end
-        function findnl(x,j,c)
-            while(x[j])!=c
-                j+=1
+        function findnl(x, j, c)
+            while (x[j]) != c
+                j += 1
             end
             return j
         end
-        findtb(x,c) = findfirst(x.==c)
+        findtb(x, c) = findfirst(x .== c)
         nl = UInt8('\n')
         tb = UInt8('\t')
         # memory map data
@@ -450,36 +455,143 @@ function readclu(p::T; opt::Int=0) where {T<:AbstractString}
         chunks = create_chunks(data)
         # prepare output
         lk = ReentrantLock()
-        o1 = Dict{String, Vector{String}}()
-        o2 = Dict{String, String}()
+        o1 = Dict{String,Vector{String}}()
+        o2 = Dict{String,String}()
         Threads.@threads for i in 1:Threads.nthreads()
             @views d = data[chunks[i]]
             j1 = 1
             while j1 < length(d)
-                j2 = findnl(d,j1,nl)
+                j2 = findnl(d, j1, nl)
                 l = d[j1:j2]
-                j1 = j2+1
+                j1 = j2 + 1
                 tbi = findtb(l, tb)
                 lc = String(l[1:tbi-1])
                 lp = String(l[tbi+1:end]) |> strip
                 lock(lk) do
-                    if opt==0
+                    if opt == 0
                         safepush!(o1, lc, lp)
                         o2[lp] = lc
-                    elseif opt==1
+                    elseif opt == 1
                         safepush!(o1, lc, lp)
-                    elseif opt==2
+                    elseif opt == 2
                         o2[lp] = lc
                     end
                 end
             end
         end
-        if opt==0
+        if opt == 0
             return o1, o2
-        elseif opt==1
+        elseif opt == 1
             return o1
-        elseif opt==2
+        elseif opt == 2
             return o2
         end
     end
+end
+
+function clu3(p, id)
+    f(x::String) = split(x, '\t')[2:end]
+    function fx(x::Vector{SubString{String}}, T::DataType)
+        o = zeros(T, length(x))
+        @inbounds begin
+            Threads.@threads for i in eachindex(x)
+                o[i] = @views parse(T, x[i])
+            end
+        end
+        return o
+    end
+    function sed(p, i)
+        cmd = `sed "$(i)q;d" $p`
+        read(pipeline(cmd, `cut -f 1`), String) |> chomp
+    end
+    hdrs = read_idx0(p);
+    printstyled("\nreading clu into memory\n"; color=:green)
+    lns = readlines(p)
+    i = startswith("min_id=$id").(lns) |> findfirst
+    lns = lns[i]
+    d = f(lns) |> x -> fx(x, UInt32)
+    printstyled("initializing clu2prot dict\n"; color=:green)
+    o = Dict(hdrs[i] => String[] for i in IterTools.distinct(d) if i>0)
+    prg = Progress(length(d); desc="populating clu2prot dict")
+    for i in eachindex(d)
+        if d[i]>0
+            k = hdrs[d[i]]
+            v = @views o[k]
+            push!(v, hdrs[i])
+        end
+        next!(prg)
+    end
+    return o
+end
+
+
+struct ProbLine
+    first::String
+    last::String
+end
+function read_idx0(p)
+    find_char(x, c='\n') = findall(x .== UInt8(c))
+    # fix path if needed
+    if !endswith("idx0")(p)
+        p = replace(p, r"\.[^.]+$" => ".faa.idx0")
+    end
+    # initialize vars
+    nl = UInt8('\n')
+    tb = UInt8('\t')
+    page_size = read(`getconf PAGESIZE`, String) |> chomp |> x -> parse(Int16, x)
+    # open file for reading
+    io = open(p, "r")
+    mm = mmap(io)
+    # calculate the chunks each thread has to process
+    nt = Threads.nthreads()
+    npages = ceil(Int, length(mm) / page_size)
+    pages_per_thread = 100
+    chunk_size = pages_per_thread * page_size
+    nchunks = ceil(Int, length(mm) / chunk_size)
+    chunks = [(i-1)*chunk_size+1:i*chunk_size for i in 1:nchunks-1]
+    push!(chunks, (nchunks-1)*chunk_size+1:length(mm))
+    # find number of records
+    ii = length(mm)-1000:length(mm)-1
+    @inbounds lnl = findlast(mm[ii] .== nl)
+    ii = ii[lnl]+1:ii[end]
+    @inbounds ltb = findfirst(mm[ii] .== tb)
+    ii = ii[ltb]+1:ii[end]
+    nrec = parse(Int, String(mm[ii]))
+    hdrs = similar(String[], nrec)
+    prg = Progress(length(hdrs), desc="reading headers")
+    prob = similar(ProbLine[], nchunks)
+    Threads.@threads for i in eachindex(chunks)
+        x = @views mm[chunks[i]]
+        nls = find_char(x, '\n');
+        p1 = String(x[1:nls[1]-1])
+        p2 = String(x[nls[end]+1:length(x)])
+        prob[i] = ProbLine(p1,p2)
+        for (ni, j) in enumerate(nls[1:end-1])
+            i0 = deepcopy(j+1)
+            i1 = i0
+            while x[i1]!=tb
+                i1+=1
+            end
+            hdr = x[i0:i1-1] |> String
+            idx_string = x[i1+1:nls[ni+1]-1] |> String
+            idx = parse(Int, idx_string)
+            hdrs[idx] = hdr
+            next!(prg)
+        end
+    end
+    # close file
+    close(io)
+    # go over problematic lines
+    function set_prob!(hdrs, x)
+        hdr, i = split(x, '\t')
+        i = parse(Int, i)
+        hdrs[i] = hdr
+        return nothing
+    end
+    set_prob!(hdrs,prob[1].first)
+    for i in 2:length(prob)
+        set_prob!(hdrs, "$(prob[i-1].last)$(prob[i].first)")
+    end
+    # return headers
+    return hdrs
 end

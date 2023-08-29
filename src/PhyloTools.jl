@@ -7,6 +7,7 @@ using GeometryBasics
 using ProgressMeter
 using Graphs
 using Mmap
+using IterTools
 
 export Node, NewickData
 export isroot, isleaf, postwalk, prewalk, children, sister
