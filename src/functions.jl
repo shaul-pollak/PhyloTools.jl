@@ -502,10 +502,11 @@ function clu3(p, id)
     end
     function read_zst(p)
         cio = open(p,"r")
-        lns = readlines(ZstdDecompressorStream(io))
+        lns = readlines(ZstdDecompressorStream(cio))
         close(cio)
         return lns
     end
+    printstyled("\nreading headers into memory\n"; color=:green)
     hdrs = read_idx0(p);
     printstyled("\nreading clu into memory\n"; color=:green)
     lns = endswith(".zst")(p) ? read_zst(p) : readlines(p)
@@ -528,7 +529,9 @@ end
 
 function read_idx0(p)
     s(x)::String = split(x,'\t')[1]
-    io = open(p,"r")
+    p0 = replace(basename(p),r"[.].+$"=>"")
+    idx0_path = "$(dirname(p))/$p0.faa.idx0"
+    io = open(idx0_path,"r")
     lns = s.(readlines(ZstdDecompressorStream(io)))
     close(io)
     return lns
