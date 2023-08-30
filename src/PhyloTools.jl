@@ -8,6 +8,7 @@ using ProgressMeter
 using Graphs
 using Mmap
 using IterTools
+using CodecZstd
 
 export Node, NewickData
 export isroot, isleaf, postwalk, prewalk, children, sister

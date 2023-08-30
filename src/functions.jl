@@ -500,13 +500,15 @@ function clu3(p, id)
         end
         return o
     end
-    function sed(p, i)
-        cmd = `sed "$(i)q;d" $p`
-        read(pipeline(cmd, `cut -f 1`), String) |> chomp
+    function read_zst(p)
+        cio = open(p,"r")
+        lns = readlines(ZstdDecompressorStream(io))
+        close(cio)
+        return lns
     end
     hdrs = read_idx0(p);
     printstyled("\nreading clu into memory\n"; color=:green)
-    lns = readlines(p)
+    lns = endswith(".zst")(p) ? read_zst(p) : readlines(p)
     i = startswith("min_id=$id").(lns) |> findfirst
     lns = lns[i]
     d = f(lns) |> x -> fx(x, UInt32)
@@ -524,74 +526,10 @@ function clu3(p, id)
     return o
 end
 
-
-struct ProbLine
-    first::String
-    last::String
-end
 function read_idx0(p)
-    find_char(x, c='\n') = findall(x .== UInt8(c))
-    # fix path if needed
-    if !endswith("idx0")(p)
-        p = replace(p, r"\.[^.]+$" => ".faa.idx0")
-    end
-    # initialize vars
-    nl = UInt8('\n')
-    tb = UInt8('\t')
-    page_size = read(`getconf PAGESIZE`, String) |> chomp |> x -> parse(Int16, x)
-    # open file for reading
-    io = open(p, "r")
-    mm = mmap(io)
-    # calculate the chunks each thread has to process
-    nt = Threads.nthreads()
-    npages = ceil(Int, length(mm) / page_size)
-    pages_per_thread = 100
-    chunk_size = pages_per_thread * page_size
-    nchunks = ceil(Int, length(mm) / chunk_size)
-    chunks = [(i-1)*chunk_size+1:i*chunk_size for i in 1:nchunks-1]
-    push!(chunks, (nchunks-1)*chunk_size+1:length(mm))
-    # find number of records
-    ii = length(mm)-1000:length(mm)-1
-    @inbounds lnl = findlast(mm[ii] .== nl)
-    ii = ii[lnl]+1:ii[end]
-    @inbounds ltb = findfirst(mm[ii] .== tb)
-    ii = ii[ltb]+1:ii[end]
-    nrec = parse(Int, String(mm[ii]))
-    hdrs = similar(String[], nrec)
-    prg = Progress(length(hdrs), desc="reading headers")
-    prob = similar(ProbLine[], nchunks)
-    Threads.@threads for i in eachindex(chunks)
-        x = @views mm[chunks[i]]
-        nls = find_char(x, '\n');
-        p1 = String(x[1:nls[1]-1])
-        p2 = String(x[nls[end]+1:length(x)])
-        prob[i] = ProbLine(p1,p2)
-        for (ni, j) in enumerate(nls[1:end-1])
-            i0 = deepcopy(j+1)
-            i1 = i0
-            while x[i1]!=tb
-                i1+=1
-            end
-            hdr = x[i0:i1-1] |> String
-            idx_string = x[i1+1:nls[ni+1]-1] |> String
-            idx = parse(Int, idx_string)
-            hdrs[idx] = hdr
-            next!(prg)
-        end
-    end
-    # close file
+    s(x)::String = split(x,'\t')[1]
+    io = open(p,"r")
+    lns = s.(readlines(ZstdDecompressorStream(io)))
     close(io)
-    # go over problematic lines
-    function set_prob!(hdrs, x)
-        hdr, i = split(x, '\t')
-        i = parse(Int, i)
-        hdrs[i] = hdr
-        return nothing
-    end
-    set_prob!(hdrs,prob[1].first)
-    for i in 2:length(prob)
-        set_prob!(hdrs, "$(prob[i-1].last)$(prob[i].first)")
-    end
-    # return headers
-    return hdrs
+    return lns
 end
