@@ -528,11 +528,15 @@ function clu3(p, id)
 end
 
 function read_idx0(p)
+    tcx(x) = transcode(ZstdDecompressor,x)
     s(x)::String = split(x,'\t')[1]
     p0 = replace(basename(p),r"[.].+$"=>"")
     idx0_path = "$(dirname(p))/$p0.faa.idx0"
-    io = open(idx0_path,"r")
-    lns = s.(readlines(ZstdDecompressorStream(io)))
-    close(io)
+    io = open(idx0_path,"r") do f 
+            mmap(f) 
+        end |>  
+        tcx |>
+        IOBuffer;
+    lns = s.(readlines(io))
     return lns
 end
