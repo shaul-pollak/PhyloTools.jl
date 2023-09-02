@@ -13,6 +13,7 @@ IterTools = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
 MakieCore = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
 Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+StringViews = "354b36f9-a18e-4713-926e-db85100087ba"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

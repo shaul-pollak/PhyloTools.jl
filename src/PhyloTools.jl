@@ -9,6 +9,7 @@ using Graphs
 using Mmap
 using IterTools
 using CodecZstd
+using StringViews
 
 export Node, NewickData
 export isroot, isleaf, postwalk, prewalk, children, sister

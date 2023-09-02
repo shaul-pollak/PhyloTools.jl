@@ -1,5 +1,6 @@
 leafnames(x::Node) = [name(a) for a in getleaves(x)]
 
+using StringViews: StringAndSub
 using Base: readuntil_vector!
 ntip(x::Node)::Int = length(getleaves(x))
 nnode(x::Node)::Int = length(postwalk(x))
@@ -406,8 +407,8 @@ opt=3 means from new format of clu
 """
 function readclu(p::T; opt::Int=0, id::Int=50) where {T<:AbstractString}
     !(opt ∈ [0, 1, 2, 3]) && error("opt must be in {0, 1, 2, 3}")
-    if opt==3
-        return clu3(p, id)
+    if opt == 3
+        return endswith(r".zstd|[.]zst")(p) ? clu3_zstd(p, id) : clu3(p, id)
     end
     open(p, "r") do io
         # functions
@@ -500,26 +501,79 @@ function clu3(p, id)
         end
         return o
     end
-    function read_zst(p)
-        cio = open(p,"r")
-        lns = readlines(ZstdDecompressorStream(cio))
-        close(cio)
-        return lns
-    end
-    printstyled("\nreading headers into memory\n"; color=:green)
-    hdrs = read_idx0(p);
-    printstyled("\nreading clu into memory\n"; color=:green)
-    lns = endswith(".zst")(p) ? read_zst(p) : readlines(p)
+    printstyled("reading headers into memory\n"; color=:green)
+    hdrs = read_idx0(p)
+    printstyled("reading clu into memory\n"; color=:green)
+    lns = readlines(p)
     i = startswith("min_id=$id").(lns) |> findfirst
     lns = lns[i]
     d = f(lns) |> x -> fx(x, UInt32)
     printstyled("initializing clu2prot dict\n"; color=:green)
-    o = Dict(hdrs[i] => String[] for i in IterTools.distinct(d) if i>0)
+    o = Dict(hdrs[i] => String[] for i in IterTools.distinct(d) if i > 0)
     prg = Progress(length(d); desc="populating clu2prot dict")
     for i in eachindex(d)
-        if d[i]>0
+        if d[i] > 0
             k = hdrs[d[i]]
-            v = @views o[k]
+            v = o[k]
+            push!(v, hdrs[i])
+        end
+        next!(prg)
+    end
+    return o
+end
+
+
+function clu3_zstd(p, id)
+    function f(inp::SubString{StringView{Vector{UInt8}}})
+        v = @view inp.string.data[inp.offset+1:inp.offset+inp.ncodeunits]
+        x = StringView(v)
+        tb = findall(x.data .== UInt8('\t'))
+        out = Vector{SubString{typeof(x)}}(undef, length(tb))
+        Threads.@threads for i in 1:length(tb)-1
+            out[i] = view(x, tb[i]+1:tb[i+1]-1)
+        end
+        out[end] = view(x, tb[end]+1:length(x))
+        return out
+    end
+    function fx(x, T::DataType)
+        o = zeros(T, length(x))
+        @inbounds begin
+            Threads.@threads for i in eachindex(x)
+                o[i] = @views parse(T, x[i])
+            end
+        end
+        return o
+    end
+    function read_zst(p)
+        io = open(p, "r") do f
+            mmap(f)
+        end |>
+             x -> transcode(ZstdDecompressor, x) |>
+                  StringView
+        nl = findall(io.data .== UInt8('\n'))
+        cond = io[end] == '\n'
+        out = Vector{SubString{typeof(io)}}(undef, cond ? length(nl) : length(nl) + 1)
+        out[1] = view(io, 1:nl[1]-1)
+        for i in 1:(cond ? length(nl) - 1 : length(nl))
+            out[i+1] = view(io, nl[i]+1:nl[i+1]-1)
+        end
+        return out
+    end
+    printstyled("reading headers into memory\n"; color=:green)
+    hdrs = read_idx0(p);
+    printstyled("reading clu into memory\n"; color=:green)
+    lns = read_zst(p);
+    i = startswith("min_id=$id").(lns) |> findfirst;
+    lns = lns[i];
+    d = f(lns) |> x -> fx(x, UInt32);
+    printstyled("initializing clu2prot dict\n"; color=:green)
+    o = Dict(hdrs[i] => eltype(hdrs)[] for i in setdiff(unique(d), eltype(d)(0)));
+    prg = Progress(length(d); desc="populating clu2prot dict")
+    for i in eachindex(d)
+        ii = @view d[i]
+        if d[i] > 0
+            k = hdrs[ii]
+            v = o[k[1]]
             push!(v, hdrs[i])
         end
         next!(prg)
@@ -528,15 +582,22 @@ function clu3(p, id)
 end
 
 function read_idx0(p)
-    tcx(x) = transcode(ZstdDecompressor,x)
-    s(x)::String = split(x,'\t')[1]
-    p0 = replace(basename(p),r"[.].+$"=>"")
+    tcx(x) = transcode(ZstdDecompressor, x)
+    p0 = replace(basename(p), r"[.].+$" => "")
     idx0_path = "$(dirname(p))/$p0.faa.idx0"
-    io = open(idx0_path,"r") do f 
-            mmap(f) 
-        end |>  
-        tcx |>
-        IOBuffer;
-    lns = s.(readlines(io))
-    return lns
+    io = open(idx0_path, "r") do f
+             mmap(f)
+         end |>
+         tcx |>
+         StringView
+    nls = findall(io.data .== UInt8('\n'))
+    tbs = findall(io.data .== UInt8('\t'))
+    cond = io[end] == '\n'
+    out = Vector{SubString{typeof(io)}}(undef, cond ? length(nls) : length(nls) + 1)
+    out[1] = view(io, 1:tbs[1]-1)
+    idxs = 1:(cond ? length(nls) - 1 : length(nls))
+    Threads.@threads for i in idxs
+        out[i+1] = view(io, nls[i]+1:tbs[i+1]-1)
+    end
+    return out
 end
