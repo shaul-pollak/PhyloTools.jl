@@ -22,6 +22,7 @@ export tippoint!, nodepoint!, cluster_tree, extract_with_tips, gene
 export treeVI!, treeVI, duplication_score, whichmin, whichmax
 export MRCA, ladderize!
 export readfasta, read_gff, readclu, mpr, treepositions
+export SubStrView
 
 include("node.jl")
 include("parser.jl")
