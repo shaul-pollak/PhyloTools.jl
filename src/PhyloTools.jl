@@ -24,6 +24,8 @@ export MRCA, ladderize!
 export readfasta, read_gff, readclu, mpr, treepositions
 export SubStrView
 
+const SubStrView = SubString{StringView{Vector{UInt8}}}
+
 include("node.jl")
 include("parser.jl")
 include("functions.jl")
@@ -32,6 +34,5 @@ include("makie.jl")
 include("mad.jl")
 include("ancrec.jl")
 
-const SubStrView = SubString{StringView{Vector{UInt8}}}
 
 end
