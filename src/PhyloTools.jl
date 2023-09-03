@@ -31,4 +31,6 @@ include("makie.jl")
 include("mad.jl")
 include("ancrec.jl")
 
+const SubStrView = SubString{StringView{Vector{UInt8}}}
+
 end
