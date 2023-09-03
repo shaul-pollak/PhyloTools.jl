@@ -581,7 +581,7 @@ function clu3_zstd(p, id)
     return o
 end
 
-function read_idx0(p)::Vector{SubStrView}
+function read_idx0(p)
     tcx(x) = transcode(ZstdDecompressor, x)
     p0 = replace(basename(p), r"[.].+$" => "")
     idx0_path = "$(dirname(p))/$p0.faa.idx0"
