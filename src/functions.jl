@@ -545,11 +545,9 @@ function clu3_zstd(p, id)
         return o
     end
     function read_zst(p)
-        io = open(p, "r") do f
-            mmap(f)
-        end |>
+        io = open(p, "r") do f mmap(f) end |>
              x -> transcode(ZstdDecompressor, x) |>
-                  StringView
+             StringView
         nl = findall(io.data .== UInt8('\n'))
         cond = io[end] == '\n'
         out = Vector{SubString{typeof(io)}}(undef, cond ? length(nl) : length(nl) + 1)
@@ -584,10 +582,9 @@ end
 function read_idx0(p)
     tcx(x) = transcode(ZstdDecompressor, x)
     p0 = replace(basename(p), r"[.].+$" => "")
-    idx0_path = "$(dirname(p))/$p0.faa.idx0"
-    io = open(idx0_path, "r") do f
-             mmap(f)
-         end |>
+    pdn = dirname(p)
+    idx0_path = length(pdn)>0 ? "$(dirname(p))/$p0.faa.idx0" : "$p0.faa.idx0"
+    io = open(idx0_path, "r") do f mmap(f) end |>
          tcx |>
          StringView
     nls = findall(io.data .== UInt8('\n'))
