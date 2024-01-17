@@ -15,6 +15,9 @@ Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 StringViews = "354b36f9-a18e-4713-926e-db85100087ba"
 
+[compat]
+GeometryBasics = "0.4"
+
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
