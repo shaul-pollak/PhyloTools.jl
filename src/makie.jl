@@ -136,8 +136,8 @@ the columns are: start, end, orientation (a string, "+" or "-"), and target gene
 
 """
 function gene(x, y)
-    yt = y + 0.5
-    yb = y - 0.5
+    yt = y + 0.35
+    yb = y - 0.35
     if x[2] - x[1] > 100
         if x[3] == "+"
             p1 = Point2f(x[1], yt)

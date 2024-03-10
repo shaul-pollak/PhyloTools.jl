@@ -354,9 +354,9 @@ function make_node_size_dict(x::Node{T,I}) where {T,I}
     return out
 end
 
-function readfasta(p::String)
-    fx(x::String)::Vector{String} = split(x, "\n>")
-    fx2(x::String)::Vector{String} = split(x, '\n')
+function readfasta(p::T) where {T<:AbstractString}
+    fx(x::String)::Vector{String} = split(x, r"\R+>")
+    fx2(x::String)::Vector{String} = split(x, r"\R+")
     r = read(p, String)
     rs = fx(r)
     rs[1] = rs[1][2:end] # first record still has '>'
@@ -366,8 +366,9 @@ function readfasta(p::String)
     Threads.@threads for r in rs
         x = fx2(r)
         if length(x) > 1
+            tpsh = join(x[2:end])
             lock(lk) do
-                o[x[1]] = join(x[2:end])
+                o[x[1]] = tpsh
             end
         end
     end
@@ -545,9 +546,11 @@ function clu3_zstd(p, id)
         return o
     end
     function read_zst(p)
-        io = open(p, "r") do f mmap(f) end |>
+        io = open(p, "r") do f
+            mmap(f)
+        end |>
              x -> transcode(ZstdDecompressor, x) |>
-             StringView
+                  StringView
         nl = findall(io.data .== UInt8('\n'))
         cond = io[end] == '\n'
         out = Vector{SubString{typeof(io)}}(undef, cond ? length(nl) : length(nl) + 1)
@@ -558,14 +561,14 @@ function clu3_zstd(p, id)
         return out
     end
     printstyled("reading headers into memory\n"; color=:green)
-    hdrs = read_idx0(p);
+    hdrs = read_idx0(p)
     printstyled("reading clu into memory\n"; color=:green)
-    lns = read_zst(p);
-    i = startswith("min_id=$id").(lns) |> findfirst;
-    lns = lns[i];
-    d = f(lns) |> x -> fx(x, UInt32);
+    lns = read_zst(p)
+    i = startswith("min_id=$id").(lns) |> findfirst
+    lns = lns[i]
+    d = f(lns) |> x -> fx(x, UInt32)
     printstyled("initializing clu2prot dict\n"; color=:green)
-    o = Dict(hdrs[i] => eltype(hdrs)[] for i in setdiff(unique(d), eltype(d)(0)));
+    o = Dict(hdrs[i] => eltype(hdrs)[] for i in setdiff(unique(d), eltype(d)(0)))
     prg = Progress(length(d); desc="populating clu2prot dict")
     for i in eachindex(d)
         ii = @view d[i]
@@ -583,8 +586,10 @@ function read_idx0(p)
     tcx(x) = transcode(ZstdDecompressor, x)
     p0 = replace(basename(p), r"[.].+$" => "")
     pdn = dirname(p)
-    idx0_path = length(pdn)>0 ? "$(dirname(p))/$p0.faa.idx0" : "$p0.faa.idx0"
-    io = open(idx0_path, "r") do f mmap(f) end |>
+    idx0_path = length(pdn) > 0 ? "$(dirname(p))/$p0.faa.idx0" : "$p0.faa.idx0"
+    io = open(idx0_path, "r") do f
+             mmap(f)
+         end |>
          tcx |>
          StringView
     nls = findall(io.data .== UInt8('\n'))

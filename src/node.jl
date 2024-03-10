@@ -472,3 +472,71 @@ function relabel!(tree, m::Dict{T,T}) where T<:AbstractString
     end
     return tree
 end
+
+
+"""
+    fixdist!(tr::Node{I,T}) where {I,T}
+
+fixes negative distances for fastme generated trees
+"""
+function fixdist!(tr::Node{I,T}) where {I,T}
+    for n in postwalk(tr) # fix negative lengths
+        dn = distance(n)
+        if !isnan(dn)
+            n.data.distance = abs(dn)
+        end
+    end
+end
+
+"""
+    isbinarytree(pw::Vector{Node{I,T}}) where {I,T}
+
+checks that the tree is a binary bifurcating tree
+"""
+function isbinarytree(pw::Vector{Node{I,T}}) where {I,T}
+     all(unique([isleaf(x) ? 0 : length(x) for x in pw]) .∈ Ref(Set([0,2])))
+end
+
+"""
+    rmleaf(n::Node, x::Node)
+
+removes the leaf node x from tree n, returning a new tree with the removed leaf
+"""
+function rmleaf(n::Node, x::Node)
+    p = parent(x)
+    s = sister(x)
+    if !isroot(p)
+        pp = parent(p)
+        # connect pp to s
+        push!(pp.children, s)
+        deleteat!(pp.children, findfirst(c->c==p,children(pp)))
+        s.parent = pp
+        s.data.distance = distance(s) + distance(p)
+        return n
+    else
+        # while length(parent(s))>0 pop!(s.parent) end
+        # @assert isroot(s) "s is not the root"
+        return make_independent_tree(s)
+    end
+end
+
+
+"""
+    extract(n::Node, l::Vector{T}) where T<:AbstractString
+
+extracts a new tree from tree n that only contains leaf names in l
+"""
+function extract(n::Node, l::Vector{T}) where T<:AbstractString
+    pow = postwalk(n);
+    @assert isbinarytree(pow) "not a binary tree. fix."
+    torem = setdiff(leafnames(n), l)
+    for k in torem
+        x = filter(x->name(x)==k, getleaves(n))
+        if length(x)>0
+            n = rmleaf(n, x[1])
+        else
+            @error "couldnt find leaf $k"
+        end
+    end
+    return n
+end
