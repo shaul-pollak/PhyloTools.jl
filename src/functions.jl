@@ -1,8 +1,7 @@
 leafnames(x::Node) = [name(a) for a in getleaves(x)]
 
-using StringViews: StringAndSub
-using Base: readuntil_vector!
 ntip(x::Node)::Int = length(getleaves(x))
+
 nnode(x::Node)::Int = length(postwalk(x))
 
 dist2root(n) = sum([isfinite(distance(x)) ? distance(x) : 0 for x in getpath(n)])
@@ -354,25 +353,35 @@ function make_node_size_dict(x::Node{T,I}) where {T,I}
     return out
 end
 
-function readfasta(p::T) where {T<:AbstractString}
-    fx(x::String)::Vector{String} = split(x, r"\R+>")
-    fx2(x::String)::Vector{String} = split(x, r"\R+")
-    r = read(p, String)
-    rs = fx(r)
-    rs[1] = rs[1][2:end] # first record still has '>'
-    o = Dict{String,String}()
-    sizehint!(o, length(rs))
-    lk = ReentrantLock()
-    Threads.@threads for r in rs
-        x = fx2(r)
-        if length(x) > 1
-            tpsh = join(x[2:end])
-            lock(lk) do
-                o[x[1]] = tpsh
-            end
-        end
+function readfasta(filename::T) where {T<:AbstractString}
+    @inline function _push2seq!(sequences::Vector{Pair{StringView,StringView}}, i::Int, s::Vector{UInt8}, header_positions::Vector{Int64}, n_sequences::Int64, nl::UInt8)
+        @inbounds start_pos = header_positions[i]
+        # one char before header is '\n' so we want to get rid of that
+        @inbounds end_pos = i == n_sequences ? length(s) : header_positions[i+1] - 2
+        # Extract header
+        header_end = findnext(isequal(nl), s, start_pos)
+        @inbounds header = view(s, start_pos+1:header_end-1) |> StringView
+        # Extract sequence
+        seq_start = header_end + 1
+        @inbounds seq_view = view(s, seq_start:end_pos) |> StringView
+        sequences[i] = header => seq_view
+        return nothing
     end
-    return o
+    !isfile(filename) && error("input file does not exist")
+    open(filename, "r") do f
+        rs = UInt8('>')
+        nl = UInt8('\n')
+        s = Mmap.mmap(f)
+        # First pass: find all header positions
+        @inbounds header_positions = findall(s .== rs)
+        n_sequences = length(header_positions) - 1
+        sequences = Vector{Pair{StringView,StringView}}(undef, n_sequences)
+        # Second pass: extract headers and sequences
+        Threads.@threads for i in 1:n_sequences
+            _push2seq!(sequences, i, s, header_positions, n_sequences, nl)
+        end
+        return Dict(sequences)
+    end
 end
 
 """
@@ -404,7 +413,7 @@ columns are separated by tabs.
 opt=0 means both plot2clu and clu2prot dicts
 opt=1 means clu2prot only
 opt=2 means prot2clu only
-opt=3 means from new format of clu
+opt=3 means from new compressed format of clu
 """
 function readclu(p::T; opt::Int=0, id::Int=50) where {T<:AbstractString}
     !(opt ∈ [0, 1, 2, 3]) && error("opt must be in {0, 1, 2, 3}")
