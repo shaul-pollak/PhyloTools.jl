@@ -353,11 +353,11 @@ function make_node_size_dict(x::Node{T,I}) where {T,I}
     return out
 end
 
-function readfasta(filename::T) where {T<:AbstractString}
-    @inline function _push2seq!(sequences::Vector{Pair{StringView,StringView}}, i::Int, s::Vector{UInt8}, header_positions::Vector{Int64}, n_sequences::Int64, nl::UInt8)
+function readfasta(filename::T, nthreads=4) where {T<:AbstractString}
+    @inline function _push2seq!(sequences::Vector{Pair{StringView,StringView}}, i::Int, s::Vector{UInt8}, header_positions::Vector{Int64}, nl::UInt8)
         @inbounds start_pos = header_positions[i]
         # one char before header is '\n' so we want to get rid of that
-        @inbounds end_pos = i == n_sequences ? length(s) : header_positions[i+1] - 2
+        @inbounds end_pos = header_positions[i+1] - 2
         # Extract header
         header_end = findnext(isequal(nl), s, start_pos)
         @inbounds header = view(s, start_pos+1:header_end-1) |> StringView
@@ -373,12 +373,19 @@ function readfasta(filename::T) where {T<:AbstractString}
         nl = UInt8('\n')
         s = Mmap.mmap(f)
         # First pass: find all header positions
-        @inbounds header_positions = findall(s .== rs)
-        n_sequences = length(header_positions) - 1
+        endind = s[end]==nl ? length(s)+1 : length(s)+2
+        @inbounds header_positions = [findall(s .== rs); endind]
+        n_sequences = length(header_positions)-1
         sequences = Vector{Pair{StringView,StringView}}(undef, n_sequences)
         # Second pass: extract headers and sequences
-        Threads.@threads for i in 1:n_sequences
-            _push2seq!(sequences, i, s, header_positions, n_sequences, nl)
+        if nthreads>1
+            Threads.@threads for i in 1:n_sequences
+                _push2seq!(sequences, i, s, header_positions, nl)
+            end
+        else
+            for i in 1:n_sequences
+                _push2seq!(sequences, i, s, header_positions, nl)
+            end
         end
         return Dict(sequences)
     end
