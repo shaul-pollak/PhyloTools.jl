@@ -17,7 +17,7 @@ export readnw, writenw
 export distance, name, id, getheights
 export leafnames, ntip, cophenetic, make_independent_tree, reroot!, midpoint_root, mad
 export MRCA, ladderize!
-export readfasta, readfast, read_gff, readclu, treepositions
+export readfasta, read_gff, readclu, treepositions
 export mpr
 # export getroot, getlca, nwstr, degree,
 # export insertnode!, print_tree, readnw, writenw, @nw_str
