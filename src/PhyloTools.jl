@@ -8,7 +8,7 @@ using ProgressMeter
 using Graphs
 using Mmap
 using IterTools
-using CodecZstd
+using CodecZstd, CodecZlib
 using StringViews
 
 # export Node, NewickData

@@ -374,6 +374,8 @@ function readfasta(filename::T, nthreads=1) where {T<:AbstractString}
         s = Mmap.mmap(f)
         if endswith(r"(\.zstd)|(\.zst)")(filename)
             s = transcode(ZstdDecompressor, s)
+        elseif endswith("gz")(filename)
+            s = transcode(GzipDecompressor, s)
         end
         # First pass: find all header positions
         endind = s[end]==nl ? length(s)+1 : length(s)+2
