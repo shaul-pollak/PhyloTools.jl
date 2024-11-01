@@ -353,7 +353,7 @@ function make_node_size_dict(x::Node{T,I}) where {T,I}
     return out
 end
 
-function readfasta(filename::T, nthreads=4) where {T<:AbstractString}
+function readfasta(filename::T, nthreads=1) where {T<:AbstractString}
     @inline function _push2seq!(sequences::Vector{Pair{StringView,StringView}}, i::Int, s::Vector{UInt8}, header_positions::Vector{Int64}, nl::UInt8)
         @inbounds start_pos = header_positions[i]
         # one char before header is '\n' so we want to get rid of that
@@ -372,6 +372,9 @@ function readfasta(filename::T, nthreads=4) where {T<:AbstractString}
         rs = UInt8('>')
         nl = UInt8('\n')
         s = Mmap.mmap(f)
+        if endswith(r"(\.zstd)|(\.zst)")(filename)
+            s = transcode(ZstdDecompressor, s)
+        end
         # First pass: find all header positions
         endind = s[end]==nl ? length(s)+1 : length(s)+2
         @inbounds header_positions = [findall(s .== rs); endind]
