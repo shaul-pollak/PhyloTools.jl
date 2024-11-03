@@ -355,9 +355,9 @@ end
 
 function readfasta(filename::T, nthreads=1) where {T<:AbstractString}
     @inline function _push2seq!(sequences::Vector{Pair{StringView,StringView}}, i::Int, s::Vector{UInt8}, header_positions::Vector{Int64}, nl::UInt8)
-        @inbounds start_pos = header_positions[i]
+        @inbounds start_pos = @views header_positions[i]
         # one char before header is '\n' so we want to get rid of that
-        @inbounds end_pos = header_positions[i+1] - 2
+        @inbounds end_pos = @views header_positions[i+1] - 2
         # Extract header
         header_end = findnext(isequal(nl), s, start_pos)
         @inbounds header = view(s, start_pos+1:header_end-1) |> StringView
