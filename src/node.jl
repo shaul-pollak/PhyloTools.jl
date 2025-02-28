@@ -121,7 +121,7 @@ function sister(n::Node)
     xs[findfirst(x->x != n, xs)]
 end
 
-Base.show(io::IO, n::Node{I,<:NewickData}) where I = write(io, "$(nwstr(n))")
+Base.show(io::IO, n::Node{I,<:NewickData}) where I = write(io, "$(nwstr(n; internal=true))")
 Base.show(io::IO, n::Node) = write(io,"Node($(id(n)), $(n.data))")
 
 # AbstractTrees interface

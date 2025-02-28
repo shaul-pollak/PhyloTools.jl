@@ -16,7 +16,11 @@ have either support values for internal nodes or a node label, but not both.
 readnw(s::AbstractString, I::Type=UInt32) =
     try
         if (length(s)<=100) && ispath(s) && isfile(s)
-            l = readline(s)
+            l = readlines(s) |> join
+            l = replace(l, " " => "")
+            if l[end]!=';'
+                l = "$l;"
+            end
             tr = readnw(IOBuffer(l), I)
             fix_node_ids!(tr)
             return tr
@@ -66,11 +70,13 @@ data type should allow `nwstr(n)` to work. See the `nwstr` docstring.
 writenw(io::IO, n) = write(io, nwstr(n))
 writenw(fname::AbstractString, n) = write(fname, nwstr(n) * "\n")
 
+
 function readnw(io::IOBuffer, I::Type=UInt32)
     i = I(1)
     c = read(io, Char)
     stack = []
     currdata = NewickData()
+    nodedata = NewickData()
     while c != ';'
         if c == '('
             push!(stack, Node(i, NewickData())); i += one(i)
@@ -79,11 +85,21 @@ function readnw(io::IOBuffer, I::Type=UInt32)
             target = pop!(stack)
             source = last(stack)
             push!(source, target)
-            target.data = currdata
+            if nodedata.name != ""
+                target.data = nodedata
+                target.id = parse(I, target.data.name)
+                nodedata = NewickData()
+            else
+                target.data = currdata
+            end
             if c == ')'
                 c = read(io, Char)
-                eof(io) || c == ';' ? (break) :
-                    (currdata, c) = get_nodedata(io, c)
+                if eof(io) || c == ';'
+                    break
+                else
+                    nodename, c = get_leafname(io, c)
+                    nodedata, c = get_nodedata(io, c, nodename)
+                end
             else
                 c = read(io, Char)
             end
@@ -166,4 +182,3 @@ function quotednanparse(x)
     end
     return support, name
 end
-
