@@ -87,8 +87,7 @@ function readnw(io::IOBuffer, I::Type=UInt32)
             push!(source, target)
             if nodedata.name != ""
                 target.data = nodedata
-                # target.id = I(i)
-                # target.id = parse(I, target.data.name)
+                target.id = parse(I, target.data.name)
                 nodedata = NewickData()
             else
                 target.data = currdata
