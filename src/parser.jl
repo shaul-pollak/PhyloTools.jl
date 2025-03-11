@@ -87,7 +87,8 @@ function readnw(io::IOBuffer, I::Type=UInt32)
             push!(source, target)
             if nodedata.name != ""
                 target.data = nodedata
-                target.id = parse(I, target.data.name)
+                # target.id = I(i)
+                # target.id = parse(I, target.data.name)
                 nodedata = NewickData()
             else
                 target.data = currdata
@@ -97,8 +98,12 @@ function readnw(io::IOBuffer, I::Type=UInt32)
                 if eof(io) || c == ';'
                     break
                 else
-                    nodename, c = get_leafname(io, c)
-                    nodedata, c = get_nodedata(io, c, nodename)
+                    if c=='\''
+                        nodename, c = PhyloTools.get_leafname(io, c)
+                    else
+                        nodename = ""
+                    end
+                    nodedata, c = PhyloTools.get_nodedata(io, c, nodename)
                 end
             else
                 c = read(io, Char)
@@ -107,8 +112,8 @@ function readnw(io::IOBuffer, I::Type=UInt32)
             c = read(io, Char)
         else
             push!(stack, Node(i, NewickData())); i += one(i)
-            leafname, c = get_leafname(io, c)
-            currdata, c = get_nodedata(io, c, leafname)
+            leafname, c = PhyloTools.get_leafname(io, c)
+            currdata, c = PhyloTools.get_nodedata(io, c, leafname)
         end
     end
     last(stack)
@@ -116,16 +121,28 @@ end
 
 function get_leafname(io::IOBuffer, c)
     leafname = ""
-    while !_isnwdelim(c)
-        leafname *= c
+    if c!='\''
+        while !_isnwdelim(c)
+            leafname *= c
+            c = read(io, Char)
+        end
+    else
+        c = read(io, Char)
+        while c!='\''
+            leafname *= c
+            c = read(io, Char)
+        end
+        leafname = leafname[2:end]
         c = read(io, Char)
     end
     String(strip(leafname)), c
 end
 
-function get_nodedata(io::IOBuffer, c, name="")
+function get_nodedata(io::IOBuffer, c, name=""; support=nothing)
     # get everything up to the next comma or )
-    support, c = _readwhile!(io, c)
+    if isnothing(support)
+        support, c = _readwhile!(io, c)
+    end
     distance = ""
     if c == ':'
         c = read(io, Char)
