@@ -87,7 +87,7 @@ function readnw(io::IOBuffer, I::Type=UInt32)
             push!(source, target)
             if nodedata.name != ""
                 target.data = nodedata
-                target.id = parse(I, target.data.name)
+                # target.id = parse(I, target.data.name)
                 nodedata = NewickData()
             else
                 target.data = currdata
@@ -99,10 +99,12 @@ function readnw(io::IOBuffer, I::Type=UInt32)
                 else
                     if c=='\''
                         nodename, c = PhyloTools.get_leafname(io, c)
+                        sv, nodename = split(nodename,':') .|> string
                     else
                         nodename = ""
+                        sv = nothing
                     end
-                    nodedata, c = PhyloTools.get_nodedata(io, c, nodename)
+                    nodedata, c = PhyloTools.get_nodedata(io, c, nodename, support=sv)
                 end
             else
                 c = read(io, Char)
@@ -131,13 +133,12 @@ function get_leafname(io::IOBuffer, c)
             leafname *= c
             c = read(io, Char)
         end
-        leafname = leafname[2:end]
         c = read(io, Char)
     end
     String(strip(leafname)), c
 end
 
-function get_nodedata(io::IOBuffer, c, name=""; support=nothing)
+function get_nodedata(io::IOBuffer, c, name=""; support::Union{String,Nothing}=nothing)
     # get everything up to the next comma or )
     if isnothing(support)
         support, c = _readwhile!(io, c)
