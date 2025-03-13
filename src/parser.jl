@@ -4,7 +4,7 @@ A string macro to read a newick string to a tree. Just to have the
 syntactic sugar enabling `nw"((A,B),C);"`
 """
 macro nw_str(s)
-   readnw(s)
+    readnw(s)
 end
 
 """
@@ -15,10 +15,10 @@ have either support values for internal nodes or a node label, but not both.
 """
 readnw(s::AbstractString, I::Type=UInt32) =
     try
-        if (length(s)<=100) && ispath(s) && isfile(s)
+        if (length(s) <= 100) && ispath(s) && isfile(s)
             l = readlines(s) |> join
             l = replace(l, " " => "")
-            if l[end]!=';'
+            if l[end] != ';'
                 l = "$l;"
             end
             tr = readnw(IOBuffer(l), I)
@@ -49,13 +49,13 @@ function nwstr(n; internal=false, dist=true)
         isleaf(n) && return "$(name(n))$d"
         s = join([walk(c) for c in children(n)], ",")
         sv = hasmethod(support, Tuple{typeof(n)}) ?
-            stringify(support(n)) : ""
+             stringify(support(n)) : ""
         sv = sv == "" && internal ? name(n) : sv
         d = dist ? stringify(':', distance(n)) : ""
         return "($s)$sv$d"
     end
     s = walk(n)
-    s*";"
+    s * ";"
 end
 
 stringify(x) = isnan(x) ? "" : string(x)
@@ -72,111 +72,172 @@ writenw(fname::AbstractString, n) = write(fname, nwstr(n) * "\n")
 
 
 function readnw(io::IOBuffer, I::Type=UInt32)
+
     i = I(1)
     c = read(io, Char)
-    stack = []
+    stack = Node[]
     currdata = NewickData()
     nodedata = NewickData()
-    while c != ';'
+    nums = reduce(vcat, string.(0:9) .|> collect)
+    buff = IOBuffer()
+
+    while (!eof(io)) || (c != ';')
+
         if c == '('
-            push!(stack, Node(i, NewickData())); i += one(i)
+
+            push!(stack, Node(i, NewickData()))
+            i += one(i)
             c = read(io, Char)
+
         elseif c == ')' || c == ','
+
             target = pop!(stack)
             source = last(stack)
             push!(source, target)
-            if nodedata.name != ""
+
+            if name(nodedata) != ""
+
                 target.data = nodedata
-                # target.id = parse(I, target.data.name)
                 nodedata = NewickData()
+
             else
+
                 target.data = currdata
+                currdata = NewickData()
+
             end
+
             if c == ')'
+
                 c = read(io, Char)
+
                 if eof(io) || c == ';'
+
                     break
+
                 else
-                    if c=='\''
-                        nodename, c = PhyloTools.get_leafname(io, c)
-                        sv, nodename = split(nodename,':') .|> string
-                    else
-                        nodename = ""
-                        sv = nothing
+
+                    nodename = ""
+                    sv = nothing
+
+                    if (c == '\'') || !(c ∈ nums)
+
+                        nodename, c = get_nodename(io, buff, c)
+                        s1 = split(nodename, ':')
+
+                        if length(s1)>1
+                            sv = string(s1[1])
+                            nodename = string(s1[2])
+                        else
+                            nodename = string(s1[1])
+                        end
+
                     end
-                    nodedata, c = PhyloTools.get_nodedata(io, c, nodename, support=sv)
+
+                    if eof(io) || (c==';')
+                        last(stack).data = NewickData(0.0, 100.0, nodename)
+                        break
+
+                    end
+
+                    nodedata, c = get_nodedata(io, c, nodename; support=sv, buff=buff)
+
                 end
+
             else
+
                 c = read(io, Char)
+
             end
+
         elseif isspace(c)
+
             c = read(io, Char)
+
         else
-            push!(stack, Node(i, NewickData())); i += one(i)
-            leafname, c = PhyloTools.get_leafname(io, c)
-            currdata, c = PhyloTools.get_nodedata(io, c, leafname)
+
+            push!(stack, Node(i, NewickData()))
+            i += one(i)
+            leafname, c = get_leafname(io, c, buff)
+            currdata, c = get_nodedata(io, c, leafname; buff=buff)
+
         end
+
     end
+
     last(stack)
+
 end
 
-function get_leafname(io::IOBuffer, c)
-    leafname = ""
-    if c!='\''
-        while !_isnwdelim(c)
-            leafname *= c
-            c = read(io, Char)
-        end
-    else
+function get_leafname(io::IOBuffer, c, buff)
+
+    while !_isnwdelim(c)
+
+        write(buff, c)
         c = read(io, Char)
-        while c!='\''
-            leafname *= c
-            c = read(io, Char)
-        end
-        c = read(io, Char)
+
     end
-    String(strip(leafname)), c
+
+    strip(take!(buff) |> String) |> String, c
+
 end
 
-function get_nodedata(io::IOBuffer, c, name=""; support::Union{String,Nothing}=nothing)
+
+
+
+function get_nodedata(io::IOBuffer, c, name=""; support::Union{String,Nothing}=nothing, buff)
+
     # get everything up to the next comma or )
     if isnothing(support)
-        support, c = _readwhile!(io, c)
+
+        support, c = _readwhile!(io, c, buff)
+
     end
+
     distance = ""
+
     if c == ':'
+
         c = read(io, Char)
-        distance, c = _readwhile!(io, c)
+        distance, c = _readwhile!(io, c, buff)
+
     end
-    if length(support)>0 && support[1]=='\''
-        sv,name = quotednanparse(support)
-    else
-        sv = nanparse(support)
-        if typeof(sv) == String
-            name = String(strip(sv))
-            sv = NaN
-        end
+
+    sv = nanparse(support)
+
+    if typeof(sv) == String
+        name = String(strip(sv))
+        sv = NaN
     end
+
     NewickData(nanparse(distance), sv, name), c
+
 end
+
+
+
+
+
 
 _isquote(c::Char) = c == '\'' || c == '"';
 
-function _readwhile!(io::IOBuffer, c)
-    out = ""
+
+
+
+function _readwhile!(io::IOBuffer, c, buff)
     if _isquote(c)
-        out *= c;
-        c = read(io,Char);
+        write(buff, c)
+        c = read(io, Char)
         while !_isquote(c)
-            out *= c;
-            c = read(io,Char)
+            write(buff, c)
+            c = read(io, Char)
         end
     end
     while !_isnwdelim(c)
-        out *= c
+        write(buff, c)
         c = read(io, Char)
     end
-    out, c
+    String(take!(buff)), c
 end
 
 
@@ -189,13 +250,26 @@ function nanparse(x)
 end
 
 function quotednanparse(x)
-    x = strip(x,['\'','"']);
-    support = Float64(0);
-    name = "";
-    if contains(x,':')
-        xs = split(x,':');
-        support = nanparse(xs[1]);
-        name = string(xs[2]);
+    x = strip(x, ['\'', '"'])
+    support = Float64(0)
+    name = ""
+    if contains(x, ':')
+        xs = split(x, ':')
+        support = nanparse(xs[1])
+        name = string(xs[2])
     end
     return support, name
+end
+
+
+
+function get_nodename(io, buff, c)
+
+    c != '\'' && write(buff,c)
+    copyuntil(buff, io, '\'')
+
+    cret = eof(io) ? '\0' : read(io, Char)
+
+    return String(take!(buff)), cret
+
 end

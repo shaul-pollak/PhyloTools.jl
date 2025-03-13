@@ -5,7 +5,7 @@ The basic tree data structure and the plot recipes are based off of NewickTree.j
 ## Tree manipulation
 To read a tree:
 ```Julia
-tree = readnw(readline(path_to_tree))
+tree = readnw(path_to_tree)
 ```
 
 We can also root the tree automatically based on a midpoint rooting criterion
@@ -18,11 +18,11 @@ tree_rooted = root_midpoint(tree)
 Trees can be clustered based on the fraction of the total divergence allowed in
 each subtree:
 ```Julia
-clu = cluster_tree(tree_rooted,2)
+clu = cluster_tree(tree_rooted, 2)
 ```
 
 ## Plotting
-Plotting is based on Plots.jl. \
+Plotting is based on Makie.jl. \
 To plot a tree (without showing its tip labels): 
 ```Julia
 plot(tree_rooted)

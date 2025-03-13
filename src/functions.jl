@@ -624,3 +624,62 @@ function read_idx0(p)
     end
     return out
 end
+
+
+function prune(tr1::PhyloTools.Node, torem::Set)
+
+    tr2 = deepcopy(tr1);
+    stack = getleaves(tr2);
+
+    while !isempty(stack)
+
+        n = pop!(stack)
+
+        if name(n) ∈ torem
+
+            p = n.parent
+            filter!(x -> id(x) != id(n), p.children)
+
+            if length(children(p))==0
+
+                p.data.name = name(n)
+                push!(stack, p)
+
+            end
+
+            n.parent = n
+
+        end
+
+    end
+
+    nodes = filter(x->length(children(x))==1, postwalk(tr2));
+
+    while length(nodes)>0
+
+        for n in nodes
+
+            cs = children(n)
+
+            if length(cs)==1
+
+                # remove node from its parent and push node's child instead
+                p = n.parent
+                filter!(x->x.id != n.id, p.children)
+                push!(p.children, cs[1])
+
+                
+                d = distance(n)
+                cs[1].data.distance += d
+
+            end
+
+        end
+
+        nodes = filter(x->length(children(x))==1, postwalk(tr2));
+
+    end
+
+    return make_independent_tree(tr2)
+
+end
