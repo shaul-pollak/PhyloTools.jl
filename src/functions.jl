@@ -74,7 +74,7 @@ end
 
 cart2lin(x::CartesianIndex, dims::Tuple) = dims[1] * (x[2] - 1) + x[1];
 
-make_independent_tree(x::Node) = readnw(nwstr(x));
+make_independent_tree(x::Node) = readnw(IOBuffer(nwstr(x; internal=true, dist=true)), Int32);
 
 function reroot!(node::Node{T,I}) where {T,I}
     curr_root = getroot(node)
@@ -626,32 +626,30 @@ function read_idx0(p)
 end
 
 
-function prune(tr1::PhyloTools.Node, torem::Set)
+function prune(tr1::Node{I, T}, torem::Set) where {I,T}
 
-    tr2 = deepcopy(tr1);
-    stack = getleaves(tr2);
-
-    while !isempty(stack)
-
-        n = pop!(stack)
-
-        if name(n) ∈ torem
-
-            p = n.parent
-            filter!(x -> id(x) != id(n), p.children)
-
-            if length(children(p))==0
-
-                p.data.name = name(n)
-                push!(stack, p)
-
-            end
-
-            n.parent = n
-
+    function delete_stack!(stack, nn)
+        while !isempty(stack)
+            n = pop!(stack)
+            p = parent(n)
+            !isnothing(p) && delete!(p, n)
+            n.parent = nn
         end
-
+        return nothing
     end
+
+    nn = Node(I(0), NewickData())
+    tr2 = deepcopy(tr1);
+    stack = filter(x-> name(x) in torem, getleaves(tr2));
+    delete_stack!(stack, nn)
+
+    lnset = leafnames(tr1) |> Set
+    stack = filter(x->!(name(x) in lnset), getleaves(tr2))
+    while !isempty(stack)
+        delete_stack!(stack, nn)
+        stack = filter(x->!(name(x) in lnset), getleaves(tr2))
+    end
+
 
     nodes = filter(x->length(children(x))==1, postwalk(tr2));
 
@@ -659,18 +657,19 @@ function prune(tr1::PhyloTools.Node, torem::Set)
 
         for n in nodes
 
-            cs = children(n)
+            css = children(n)
 
-            if length(cs)==1
+            if length(css)==1
 
-                # remove node from its parent and push node's child instead
-                p = n.parent
-                filter!(x->x.id != n.id, p.children)
-                push!(p.children, cs[1])
-
-                
+                # add n's distance to p to cs's distance to n
                 d = distance(n)
-                cs[1].data.distance += d
+                cs = css[1]
+                cs.data.distance += d
+                
+                # remove node from its parent and push node's child instead
+                p = parent(n)
+                delete!(p, n)
+                push!(p, cs)
 
             end
 

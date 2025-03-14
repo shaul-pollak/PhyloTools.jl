@@ -71,105 +71,104 @@ writenw(io::IO, n) = write(io, nwstr(n))
 writenw(fname::AbstractString, n) = write(fname, nwstr(n) * "\n")
 
 
-function readnw(io::IOBuffer, I::Type=UInt32)
+# function readnw(io::IOBuffer, I::Type=UInt32)
 
-    i = I(1)
-    c = read(io, Char)
-    stack = Node[]
-    currdata = NewickData()
-    nodedata = NewickData()
-    nums = reduce(vcat, string.(0:9) .|> collect)
-    buff = IOBuffer()
+#     i = I(1)
+#     c = read(io, Char)
+#     stack = Node[]
+#     currdata = NewickData()
+#     nodedata = NewickData()
+#     nums = reduce(vcat, string.(0:9) .|> collect)
+#     buff = IOBuffer()
 
-    while (!eof(io)) || (c != ';')
+#     while (!eof(io)) || (c != ';')
 
-        if c == '('
+#         if c == '('
 
-            push!(stack, Node(i, NewickData()))
-            i += one(i)
-            c = read(io, Char)
+#             push!(stack, Node(i, NewickData()))
+#             i += one(i)
+#             c = read(io, Char)
 
-        elseif c == ')' || c == ','
+#         elseif c == ')' || c == ','
 
-            target = pop!(stack)
-            source = last(stack)
-            push!(source, target)
+#             target = pop!(stack)
+#             source = last(stack)
+#             push!(source, target)
 
-            if name(nodedata) != ""
+#             if name(nodedata) != ""
 
-                target.data = nodedata
-                nodedata = NewickData()
+#                 target.data = deepcopy(nodedata)
+#                 nodedata.name = ""
 
-            else
+#             else
 
-                target.data = currdata
-                currdata = NewickData()
+#                 target.data = deepcopy(currdata)
+#                 # currdata = NewickData()
 
-            end
+#             end
 
-            if c == ')'
+#             if c == ')'
 
-                c = read(io, Char)
+#                 c = read(io, Char)
 
-                if eof(io) || c == ';'
+#                 if eof(io) || c == ';'
 
-                    break
+#                     break
 
-                else
+#                 else
 
-                    nodename = ""
-                    sv = nothing
+#                     nodename = ""
+#                     sv = nothing
 
-                    if (c == '\'') || !(c ∈ nums)
+#                     if (c == '\'') || !(c ∈ nums)
 
-                        nodename, c = get_nodename(io, buff, c)
-                        s1 = split(nodename, ':')
+#                         nodename, c = get_nodename(io, buff, c)
+#                         s1 = split(nodename, ':')
 
-                        if length(s1)>1
-                            sv = string(s1[1])
-                            nodename = string(s1[2])
-                        else
-                            nodename = string(s1[1])
-                        end
+#                         if length(s1)>1
+#                             sv = string(s1[1])
+#                             nodename = string(s1[2])
+#                         else
+#                             nodename = string(s1[1])
+#                         end
 
-                    end
+#                     end
 
-                    if eof(io) || (c==';')
-                        last(stack).data = NewickData(0.0, 100.0, nodename)
-                        break
+#                     if eof(io) || (c==';')
+#                         last(stack).data = NewickData(0.0, 100.0, nodename)
+#                         break
+#                     end
 
-                    end
+#                     nodedata, c = get_nodedata(io, c, nodename; support=sv, buff=buff)
 
-                    nodedata, c = get_nodedata(io, c, nodename; support=sv, buff=buff)
+#                 end
 
-                end
+#             else
 
-            else
+#                 c = read(io, Char)
 
-                c = read(io, Char)
+#             end
 
-            end
+#         elseif isspace(c)
 
-        elseif isspace(c)
+#             c = read(io, Char)
 
-            c = read(io, Char)
+#         else
 
-        else
+#             push!(stack, Node(i, NewickData()))
+#             i += one(i)
+#             leafname, c = get_leafname(io, c, buff)
+#             currdata, c = get_nodedata(io, c, leafname; buff=buff)
 
-            push!(stack, Node(i, NewickData()))
-            i += one(i)
-            leafname, c = get_leafname(io, c, buff)
-            currdata, c = get_nodedata(io, c, leafname; buff=buff)
+#         end
 
-        end
+#     end
 
-    end
+#     last(stack)
 
-    last(stack)
+# end
 
-end
-
-function get_leafname(io::IOBuffer, c, buff)
+function get_leafname(io::IOBuffer, c, buff::IOBuffer)
 
     while !_isnwdelim(c)
 
@@ -185,7 +184,7 @@ end
 
 
 
-function get_nodedata(io::IOBuffer, c, name=""; support::Union{String,Nothing}=nothing, buff)
+function get_nodedata(io::IOBuffer, c, name=""; support::Union{String,Nothing}=nothing, buff::IOBuffer)
 
     # get everything up to the next comma or )
     if isnothing(support)
@@ -210,7 +209,8 @@ function get_nodedata(io::IOBuffer, c, name=""; support::Union{String,Nothing}=n
         sv = NaN
     end
 
-    NewickData(nanparse(distance), sv, name), c
+    dv = nanparse(distance)
+    NewickData(dv, sv, name), c
 
 end
 
@@ -272,4 +272,54 @@ function get_nodename(io, buff, c)
 
     return String(take!(buff)), cret
 
+end
+
+
+function readnw(io::IOBuffer, I::Type=UInt32)
+
+    i = I(1)
+    c = read(io, Char)
+    stack = []
+    currdata = NewickData()
+    buff = IOBuffer()
+
+    while c != ';'
+
+        if c == '('
+
+            push!(stack, Node(i, NewickData())); i += one(i)
+            c = read(io, Char)
+
+        elseif c == ')' || c == ','
+
+            target = pop!(stack)
+            source = last(stack)
+            push!(source, target)
+            target.data = currdata
+
+            if c == ')'
+                c = read(io, Char)
+                eof(io) || c == ';' ? (break) :
+                    (currdata, c) = get_nodedata(io, c; buff=buff)
+
+            else
+
+                c = read(io, Char)
+            end
+
+        elseif isspace(c)
+
+            c = read(io, Char)
+
+        else
+
+            push!(stack, Node(i, NewickData())); i += one(i)
+            leafname, c = get_leafname(io, c, buff)
+            currdata, c = get_nodedata(io, c, leafname; buff=buff)
+
+        end
+
+    end
+
+    last(stack)
 end
